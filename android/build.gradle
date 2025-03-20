@@ -6,6 +6,15 @@ allprojects {
 }
 
 rootProject.buildDir = "../build"
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.2.1' // ✅ Deve estar aqui!
+    }
+}
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
