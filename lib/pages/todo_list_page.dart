@@ -17,9 +17,10 @@ class _TodoListPageState extends State<TodoListPage> {
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    _loadProducts(); // Carrega os produtos salvos ao iniciar a tela
   }
 
+  // Método para carregar os produtos armazenados no SharedPreferences
   Future<void> _loadProducts() async {
     final prefs = await SharedPreferences.getInstance();
     final String? productsData = prefs.getString('products');
@@ -30,11 +31,13 @@ class _TodoListPageState extends State<TodoListPage> {
     }
   }
 
+  // Método para salvar os produtos no SharedPreferences
   Future<void> _saveProducts() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('products', json.encode(products));
   }
 
+  // Adiciona um novo produto à lista
   void _addProduct() {
     String text = todoController.text.trim();
     if (text.isNotEmpty) {
@@ -43,6 +46,8 @@ class _TodoListPageState extends State<TodoListPage> {
       });
       todoController.clear();
       _saveProducts();
+
+      // Rola a lista para o final após adicionar um item
       Future.delayed(Duration(milliseconds: 300), () {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -53,6 +58,7 @@ class _TodoListPageState extends State<TodoListPage> {
     }
   }
 
+  // Alterna o status de conclusão do produto
   void _toggleProductStatus(int index) {
     setState(() {
       products[index]['completed'] = !products[index]['completed'];
@@ -60,13 +66,15 @@ class _TodoListPageState extends State<TodoListPage> {
     _saveProducts();
   }
 
+  // Atualiza o valor do produto
   void _updateValue(int index, String value) {
     setState(() {
-      products[index]['value'] = double.tryParse(value) ?? 0.0;
+      products[index]['value'] = double.tryParse(value.replaceAll(',', '.')) ?? 0.0;
     });
     _saveProducts();
   }
 
+  // Atualiza a quantidade do produto
   void _updateQuantity(int index, String quantity) {
     setState(() {
       products[index]['quantity'] = int.tryParse(quantity) ?? 1;
@@ -74,6 +82,7 @@ class _TodoListPageState extends State<TodoListPage> {
     _saveProducts();
   }
 
+  // Remove um produto da lista
   void _removeProduct(int index) {
     setState(() {
       products.removeAt(index);
@@ -81,6 +90,7 @@ class _TodoListPageState extends State<TodoListPage> {
     _saveProducts();
   }
 
+  // Remove todos os produtos da lista
   void _clearProducts() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('products');
@@ -89,6 +99,7 @@ class _TodoListPageState extends State<TodoListPage> {
     });
   }
 
+  // Calcula o valor total dos produtos na lista
   double _calculateTotalValue() {
     return products.fold(0.0, (sum, product) => sum + (product['value'] * product['quantity']));
   }
@@ -100,7 +111,7 @@ class _TodoListPageState extends State<TodoListPage> {
         body: Container(
           decoration: BoxDecoration(
             image: DecorationImage(
-              image: AssetImage("assets/images/fundo.webp"),
+              image: AssetImage("assets/images/fundo.webp"), // Fundo da tela
               fit: BoxFit.cover,
             ),
           ),
@@ -147,14 +158,10 @@ class _TodoListPageState extends State<TodoListPage> {
                           key: Key(products[index]['title']),
                           direction: DismissDirection.endToStart,
                           background: Container(
-                            margin: EdgeInsets.symmetric(vertical: 2),
-                            padding: EdgeInsets.symmetric(vertical: 4),
                             color: Colors.red.shade300,
                             alignment: Alignment.centerRight,
-                            child: Padding(
-                              padding: EdgeInsets.only(right: 20),
-                              child: Icon(Icons.delete, color: Colors.white),
-                            ),
+                            padding: EdgeInsets.symmetric(horizontal: 20),
+                            child: Icon(Icons.delete, color: Colors.white),
                           ),
                           onDismissed: (direction) {
                             _removeProduct(index);
@@ -215,22 +222,9 @@ class _TodoListPageState extends State<TodoListPage> {
                   Text('Total acumulado dos produtos: R\$ ${_calculateTotalValue().toStringAsFixed(2)}  '),
                   Text('  Quantidade total de produtos: ${products.length}'),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text('Você possui ${products.where((product) => !product['completed']).length} produtos pendentes'),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: _clearProducts,
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          backgroundColor: Colors.blue,
-                          padding: const EdgeInsets.all(8),
-                        ),
-                        child: const Text('Limpar tudo'),
-                      ),
-                    ],
+                  ElevatedButton(
+                    onPressed: _clearProducts,
+                    child: const Text('Limpar tudo'),
                   ),
                 ],
               ),
