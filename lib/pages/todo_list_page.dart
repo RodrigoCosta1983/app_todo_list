@@ -32,7 +32,6 @@ class _TodoListPageState extends State<TodoListPage> {
             'completed': product['completed'] ?? false,
             'value': product['value'] ?? '', // Mantém o valor salvo
             'quantity': product['quantity'] ?? '', // Mantém a quantidade salva
-            // Adiciona controladores para restaurar os valores nos campos de texto
             'valueController': TextEditingController(text: product['value']?.toString() ?? ''),
             'quantityController': TextEditingController(text: product['quantity']?.toString() ?? ''),
           }),
@@ -47,8 +46,8 @@ class _TodoListPageState extends State<TodoListPage> {
     await prefs.setString('products', json.encode(products.map((product) => {
       'title': product['title'],
       'completed': product['completed'],
-      'value': product['value'], // Salva o valor inserido pelo usuário
-      'quantity': product['quantity'],  // Salva a quantidade inserida pelo usuário
+      'value': product['value'],
+      'quantity': product['quantity'],
     }).toList()));
   }
 
@@ -59,8 +58,8 @@ class _TodoListPageState extends State<TodoListPage> {
         products.add({
           'title': text,
           'completed': false,
-          'value': '',   // Agora o valor inicial é vazio
-          'quantity': '',     // Agora a quantidade inicial é vazia
+          'value': '',
+          'quantity': '',
           'valueController': TextEditingController(text: ''),
           'quantityController': TextEditingController(text: ''),
         });
@@ -75,7 +74,7 @@ class _TodoListPageState extends State<TodoListPage> {
       products[index]['value'] = value;
       products[index]['valueController'].text = value;
     });
-    _saveProducts();  // Salva o valor atualizado
+    _saveProducts(); // Salva o valor atualizado
   }
 
   void _updateQuantity(int index, String quantity) {
@@ -83,7 +82,14 @@ class _TodoListPageState extends State<TodoListPage> {
       products[index]['quantity'] = quantity;
       products[index]['quantityController'].text = quantity;
     });
-    _saveProducts();
+    _saveProducts(); // Salva a quantidade atualizada
+  }
+
+  void _removeProduct(int index) {
+    setState(() {
+      products.removeAt(index);
+    });
+    _saveProducts(); // Salva a lista após remoção
   }
 
   double _calculateTotalValue() {
@@ -137,63 +143,77 @@ class _TodoListPageState extends State<TodoListPage> {
                       controller: _scrollController,
                       itemCount: products.length,
                       itemBuilder: (context, index) {
-                        return Column(
-                          children: [
-                            ListTile(
-                              leading: Checkbox(
-                                value: products[index]['completed'],
-                                onChanged: (bool? value) {
-                                  setState(() {
-                                    products[index]['completed'] = value ?? false;
-                                  });
-                                  _saveProducts();  // Salva a alteração no status
-                                },
+                        return Dismissible(
+                          key: Key(products[index]['title']),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            color: Colors.red,
+                            alignment: Alignment.centerRight,
+                            padding: EdgeInsets.symmetric(horizontal: 20),
+                            child: Icon(Icons.delete, color: Colors.white),
+                          ),
+                          onDismissed: (direction) {
+                            _removeProduct(index);
+                          },
+                          child: Column(
+                            children: [
+                              ListTile(
+                                leading: Checkbox(
+                                  value: products[index]['completed'],
+                                  onChanged: (bool? value) {
+                                    setState(() {
+                                      products[index]['completed'] = value ?? false;
+                                    });
+                                    _saveProducts();
+                                  },
+                                ),
+                                title: Text(products[index]['title']),
                               ),
-                              title: Text(products[index]['title']),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: products[index]['valueController'],
-                                      decoration: const InputDecoration(
-                                        labelText: "Valor do produto",
-                                        border: OutlineInputBorder(),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: products[index]['valueController'],
+                                        decoration: const InputDecoration(
+                                          labelText: "Valor do produto",
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (text) => _updateValue(index, text),
                                       ),
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (text) => _updateValue(index, text),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: products[index]['quantityController'],
-                                      decoration: const InputDecoration(
-                                        labelText: "Quantidade",
-                                        border: OutlineInputBorder(),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: products[index]['quantityController'],
+                                        decoration: const InputDecoration(
+                                          labelText: "Quantidade",
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        keyboardType: TextInputType.number,
+                                        onChanged: (text) => _updateQuantity(index, text),
                                       ),
-                                      keyboardType: TextInputType.number, //telcado tipo numérico
-                                      onChanged: (text) => _updateQuantity(index, text),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         );
                       },
                     ),
                   ),
                   Text('Total acumulado dos produtos: R\$ ${_calculateTotalValue().toStringAsFixed(2)}'),
                   Text('  Quantidade total de produtos: ${products.length}'),
+                  const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
                       setState(() {
                         products.clear();
                       });
-                      _saveProducts();  // Salva a lista vazia ao limpar
+                      _saveProducts();
                     },
                     child: const Text('Limpar tudo'),
                   ),
