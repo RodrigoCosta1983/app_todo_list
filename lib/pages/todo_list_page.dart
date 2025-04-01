@@ -174,7 +174,7 @@ class _TodoListPageState extends State<TodoListPage> {
                                         labelText: "Quantidade",
                                         border: OutlineInputBorder(),
                                       ),
-                                      keyboardType: TextInputType.number,
+                                      keyboardType: TextInputType.number, //telcado tipo numérico
                                       onChanged: (text) => _updateQuantity(index, text),
                                     ),
                                   ),
