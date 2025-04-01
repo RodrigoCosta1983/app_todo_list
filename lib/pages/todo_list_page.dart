@@ -48,12 +48,10 @@ class _TodoListPageState extends State<TodoListPage> {
       _saveProducts();
 
       // Rola a lista para o final após adicionar um item
-      Future.delayed(Duration(milliseconds: 300), () {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+      Future.delayed(Duration(milliseconds: 100), () {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
       });
     }
   }
@@ -158,7 +156,7 @@ class _TodoListPageState extends State<TodoListPage> {
                           key: Key(products[index]['title']),
                           direction: DismissDirection.endToStart,
                           background: Container(
-                            color: Colors.red,
+                            color: Colors.red.shade300,
                             alignment: Alignment.centerRight,
                             padding: EdgeInsets.symmetric(horizontal: 20),
                             child: Icon(Icons.delete, color: Colors.white),
