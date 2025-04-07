@@ -1,6 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:url_launcher/url_launcher.dart';
 
 class TodoListPage extends StatefulWidget {
   TodoListPage({super.key});
@@ -10,17 +17,78 @@ class TodoListPage extends StatefulWidget {
 }
 
 class _TodoListPageState extends State<TodoListPage> {
+  Future<void> _launchURL(String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        throw 'Não foi possível abrir a URL';
+      }
+    } catch (e) {
+      print('Erro ao abrir a URL: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao abrir a URL')),
+      );
+    }
+  }
+
   final TextEditingController todoController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   List<Map<String, dynamic>> products = [];
+  List<String> savedLists = [];
+  String? currentListName;
 
   @override
   void initState() {
     super.initState();
-    _loadProducts(); // Carrega os produtos salvos ao iniciar o app
+    _loadProducts();
+    _loadSavedLists();
   }
 
-  // Método para carregar os produtos armazenados no SharedPreferences
+  Future<void> _loadSavedLists() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getStringList('savedLists') ?? [];
+    setState(() {
+      savedLists = keys;
+    });
+  }
+
+  Future<void> _exportToCSV() async {
+    try {
+      print("Exportando CSV...");
+      print(products);
+
+      final List<List<String>> csvData = [
+        ['Produto', 'Quantidade', 'Valor Unitário', 'Total']
+      ];
+
+      for (var product in products) {
+        final title = product['title'] ?? '';
+        final quantity = product['quantity']?.toString() ?? '0';
+        final value = product['value']?.toString() ?? '0';
+        final total = (double.tryParse(value.replaceAll(',', '.')) ?? 0.0) *
+            (int.tryParse(quantity) ?? 0);
+        csvData.add([title, quantity, value, total.toStringAsFixed(2)]);
+      }
+
+      final StringBuffer csvContent = StringBuffer();
+      for (var row in csvData) {
+        csvContent.writeln(row.join(';'));
+      }
+
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/lista_exportada.csv';
+      final file = File(path);
+      await file.writeAsString(csvContent.toString());
+
+      await Share.shareXFiles([XFile(path)], text: 'Lista exportada em CSV');
+    } catch (e) {
+      print('Erro ao exportar CSV: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao exportar CSV.')),
+      );
+    }
+  }
+
   Future<void> _loadProducts() async {
     final prefs = await SharedPreferences.getInstance();
     final String? productsData = prefs.getString('products');
@@ -28,27 +96,134 @@ class _TodoListPageState extends State<TodoListPage> {
       setState(() {
         products = List<Map<String, dynamic>>.from(
           json.decode(productsData).map((product) => {
-            'title': product['title'],
-            'completed': product['completed'] ?? false,
-            'value': product['value'] ?? '', // Mantém o valor salvo
-            'quantity': product['quantity'] ?? '', // Mantém a quantidade salva
-            'valueController': TextEditingController(text: product['value']?.toString() ?? ''),
-            'quantityController': TextEditingController(text: product['quantity']?.toString() ?? ''),
-          }),
+                'title': product['title'],
+                'completed': product['completed'] ?? false,
+                'value': product['value'] ?? '',
+                'quantity': product['quantity'] ?? '',
+                'valueController': TextEditingController(
+                    text: product['value']?.toString() ?? ''),
+                'quantityController': TextEditingController(
+                    text: product['quantity']?.toString() ?? ''),
+              }),
         );
       });
     }
   }
 
-  // Método para salvar os produtos no SharedPreferences
   Future<void> _saveProducts() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('products', json.encode(products.map((product) => {
-      'title': product['title'],
-      'completed': product['completed'],
-      'value': product['value'],
-      'quantity': product['quantity'],
-    }).toList()));
+    await prefs.setString(
+        'products',
+        json.encode(products
+            .map((product) => {
+                  'title': product['title'],
+                  'completed': product['completed'],
+                  'value': product['value'],
+                  'quantity': product['quantity'],
+                })
+            .toList()));
+  }
+
+  Future<void> _saveCurrentListWithName(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        'list_$name',
+        json.encode(products
+            .map((product) => {
+                  'title': product['title'],
+                  'completed': product['completed'],
+                  'value': product['value'],
+                  'quantity': product['quantity'],
+                })
+            .toList()));
+
+    List<String> savedLists = prefs.getStringList('savedLists') ?? [];
+    if (!savedLists.contains(name)) {
+      savedLists.add(name);
+      await prefs.setStringList('savedLists', savedLists);
+      _loadSavedLists();
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Lista "$name" salva com sucesso!')),
+    );
+  }
+
+  Future<List<String>> _getSavedLists() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList('savedLists') ?? [];
+  }
+
+  Future<void> _deleteList(String listName) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('list_$listName');
+    List<String> savedLists = prefs.getStringList('savedLists') ?? [];
+    savedLists.remove(listName);
+    await prefs.setStringList('savedLists', savedLists);
+    _loadSavedLists();
+  }
+
+  void _loadListByName(String listName) async {
+    final prefs = await SharedPreferences.getInstance();
+    final listData = prefs.getString('list_$listName');
+    if (listData != null) {
+      final decoded = List<Map<String, dynamic>>.from(
+        json.decode(listData).map((product) => {
+              'title': product['title'],
+              'completed': product['completed'] ?? false,
+              'value': product['value'] ?? '',
+              'quantity': product['quantity'] ?? '',
+              'valueController': TextEditingController(
+                  text: product['value']?.toString() ?? ''),
+              'quantityController': TextEditingController(
+                  text: product['quantity']?.toString() ?? ''),
+            }),
+      );
+      setState(() {
+        currentListName = listName;
+        products = decoded;
+      });
+    }
+  }
+
+  Future<void> _exportToPDF() async {
+    try {
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                    "Lista de Compras ${currentListName != null ? '(${currentListName})' : ''}",
+                    style: pw.TextStyle(fontSize: 24)),
+                pw.SizedBox(height: 12),
+                ...products.map((product) => pw.Text(
+                    '${product['title']} - Qtd: ${product['quantity']} - Valor: R\$ ${product['value']}')),
+                pw.SizedBox(height: 24),
+                pw.Text(
+                    'Total: R\$ ${_calculateTotalValue().toStringAsFixed(2)}'),
+              ],
+            );
+          },
+        ),
+      );
+
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/lista_compras.pdf';
+      final file = File(path);
+      await file.writeAsBytes(await pdf.save());
+
+      await Share.shareXFiles([XFile(path)],
+          text: 'Minha lista de compras em PDF');
+    } catch (e) {
+      print('Erro ao exportar PDF: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao exportar PDF.')),
+      );
+    }
   }
 
   void _addProduct() {
@@ -65,7 +240,7 @@ class _TodoListPageState extends State<TodoListPage> {
         });
       });
       todoController.clear();
-      _saveProducts(); // Salva a lista atualizada
+      _saveProducts();
     }
   }
 
@@ -74,7 +249,7 @@ class _TodoListPageState extends State<TodoListPage> {
       products[index]['value'] = value;
       products[index]['valueController'].text = value;
     });
-    _saveProducts(); // Salva o valor atualizado
+    _saveProducts();
   }
 
   void _updateQuantity(int index, String quantity) {
@@ -82,28 +257,179 @@ class _TodoListPageState extends State<TodoListPage> {
       products[index]['quantity'] = quantity;
       products[index]['quantityController'].text = quantity;
     });
-    _saveProducts(); // Salva a quantidade atualizada
+    _saveProducts();
   }
 
   void _removeProduct(int index) {
     setState(() {
       products.removeAt(index);
     });
-    _saveProducts(); // Salva a lista após remoção
+    _saveProducts();
   }
 
   double _calculateTotalValue() {
     return products.fold(0.0, (sum, product) {
-      double value = double.tryParse(product['value'].toString().replaceAll(',', '.')) ?? 0.0;
+      double value =
+          double.tryParse(product['value'].toString().replaceAll(',', '.')) ??
+              0.0;
       int quantity = int.tryParse(product['quantity'].toString()) ?? 0;
       return sum + (value * quantity);
     });
+  }
+
+  void _showSaveDialog() {
+    final nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Salvar Lista'),
+        content: TextField(
+          controller: nameController,
+          decoration: InputDecoration(hintText: 'Nome da lista'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _saveCurrentListWithName(nameController.text);
+              Navigator.of(context).pop();
+            },
+            child: Text('Salvar'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
+        onDrawerChanged: (isOpened) {
+          if (isOpened) _loadSavedLists();
+        },
+        drawer: Drawer(
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                const DrawerHeader(
+                  decoration: BoxDecoration(color: Colors.blue),
+                  child: Text("Menu",
+                      style: TextStyle(color: Colors.white, fontSize: 24)),
+                ),
+                ExpansionTile(
+                  title: const Text("Minhas Listas"),
+                  children: savedLists.map((listName) {
+                    return Dismissible(
+                      key: Key(listName),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      confirmDismiss: (direction) async {
+                        return await showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text("Confirmar exclusão"),
+                            content:
+                                Text("Deseja apagar a lista \"$listName\"?"),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
+                                child: const Text("Cancelar"),
+                              ),
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
+                                child: const Text("Apagar"),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      onDismissed: (direction) async {
+                        await _deleteList(listName);
+                        if (currentListName == listName) {
+                          setState(() {
+                            currentListName = null;
+                            products.clear();
+                          });
+                          _saveProducts();
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Lista "$listName" apagada')),
+                        );
+                      },
+                      child: ListTile(
+                        title: Text(listName),
+                        onTap: () {
+                          _loadListByName(listName);
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const Divider(), // opcional, só se quiser separar visualmente
+
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text("Sobre"),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text("Sobre o aplicativo"),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              "Este é um app de lista de compras desenvolvido por RodrigoCosta-DEV. "
+                              "Você pode criar, salvar, apagar e exportar listas como PDF e CSV.",
+                            ),
+                            const SizedBox(height: 12),
+                            ListTile(
+                              leading: Icon(Icons.link),
+                              title: Text("RodrigoCosta-DEV"),
+                              onTap: () =>
+                                  _launchURL('https://rodrigocosta-dev.com'),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            child: const Text("Fechar"),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        appBar: AppBar(
+          title: Text("Lista de Compras"),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.save),
+              onPressed: _showSaveDialog,
+            ),
+          ],
+        ),
         body: Container(
           decoration: BoxDecoration(
             image: DecorationImage(
@@ -162,7 +488,8 @@ class _TodoListPageState extends State<TodoListPage> {
                                   value: products[index]['completed'],
                                   onChanged: (bool? value) {
                                     setState(() {
-                                      products[index]['completed'] = value ?? false;
+                                      products[index]['completed'] =
+                                          value ?? false;
                                     });
                                     _saveProducts();
                                   },
@@ -170,43 +497,50 @@ class _TodoListPageState extends State<TodoListPage> {
                                 title: Text(products[index]['title']),
                               ),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0),
                                 child: Row(
                                   children: [
                                     Expanded(
                                       child: TextField(
-                                        controller: products[index]['valueController'],
+                                        controller: products[index]
+                                            ['valueController'],
                                         decoration: const InputDecoration(
                                           labelText: "Valor do produto",
                                           border: OutlineInputBorder(),
                                         ),
                                         keyboardType: TextInputType.number,
-                                        onChanged: (text) => _updateValue(index, text),
+                                        onChanged: (text) =>
+                                            _updateValue(index, text),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: TextField(
-                                        controller: products[index]['quantityController'],
+                                        controller: products[index]
+                                            ['quantityController'],
                                         decoration: const InputDecoration(
                                           labelText: "Quantidade",
                                           border: OutlineInputBorder(),
                                         ),
                                         keyboardType: TextInputType.number,
-                                        onChanged: (text) => _updateQuantity(index, text),
+                                        onChanged: (text) =>
+                                            _updateQuantity(index, text),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
+                              const SizedBox(height: 12),
                             ],
                           ),
                         );
                       },
                     ),
                   ),
-                  Text('Total acumulado dos produtos: R\$ ${_calculateTotalValue().toStringAsFixed(2)}'),
-                  Text('  Quantidade total de produtos: ${products.length}'),
+                  Text(
+                      'Valor total dos produtos: R\$ ${_calculateTotalValue().toStringAsFixed(2)}'),
+                  //   Text('  Quantidade total de produtos: ${products.length}'),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
@@ -217,6 +551,40 @@ class _TodoListPageState extends State<TodoListPage> {
                     },
                     child: const Text('Limpar tudo'),
                   ),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton.icon(
+                        icon: Icon(Icons.share),
+                        label: Text("CSV"),
+                        onPressed: _exportToCSV,
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        icon: Icon(Icons.picture_as_pdf),
+                        label: Text("PDF"),
+                        onPressed: _exportToPDF,
+                      ),
+                    ],
+                  ),
+
+                  // ElevatedButton(
+                  //   onPressed: () async {
+                  //     final directory = await getTemporaryDirectory();
+                  //     final path = '${directory.path}/teste.txt';
+                  //     final file = File(path);
+                  //     await file
+                  //         .writeAsString("Arquivo de teste salvo com sucesso!");
+                  //     ScaffoldMessenger.of(context).showSnackBar(
+                  //       SnackBar(
+                  //           content: Text('Arquivo de teste salvo em:\n$path')),
+                  //     );
+                  //     await Share.shareXFiles([XFile(path)],
+                  //         text: 'Arquivo de teste compartilhado');
+                  //   },
+                  //   child: Text('Testar gravação'),
+                  // ),
                 ],
               ),
             ),
