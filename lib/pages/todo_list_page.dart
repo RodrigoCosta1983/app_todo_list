@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -8,6 +9,7 @@ import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 
 class TodoListPage extends StatefulWidget {
   TodoListPage({super.key});
@@ -54,33 +56,40 @@ class _TodoListPageState extends State<TodoListPage> {
 
   Future<void> _exportToCSV() async {
     try {
-      print("Exportando CSV...");
-      print(products);
+      List<List<String>> rows = [];
 
-      final List<List<String>> csvData = [
-        ['Produto', 'Quantidade', 'Valor Unitário', 'Total']
-      ];
+      // Cabeçalhos
+      rows.add(['Produto', 'Quantidade', 'Valor (R\$)']);
 
+      // Produtos
       for (var product in products) {
-        final title = product['title'] ?? '';
-        final quantity = product['quantity']?.toString() ?? '0';
-        final value = product['value']?.toString() ?? '0';
-        final total = (double.tryParse(value.replaceAll(',', '.')) ?? 0.0) *
-            (int.tryParse(quantity) ?? 0);
-        csvData.add([title, quantity, value, total.toStringAsFixed(2)]);
+        rows.add([
+          product['title'],
+          product['quantity'].toString(),
+          product['value'].toString(),
+        ]);
       }
 
-      final StringBuffer csvContent = StringBuffer();
-      for (var row in csvData) {
-        csvContent.writeln(row.join(';'));
-      }
+      // Linha em branco + total
+      rows.add([]);
+      rows.add([
+        'Total',
+        '',
+        _calculateTotalValue().toStringAsFixed(2),
+      ]);
 
+      // Converter para CSV
+      String csv = const ListToCsvConverter().convert(rows);
+
+      // Caminho do arquivo
+      final String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
       final directory = await getTemporaryDirectory();
-      final path = '${directory.path}/lista_exportada.csv';
+      final path = '${directory.path}/lista_compras_$formattedDate.csv';
       final file = File(path);
-      await file.writeAsString(csvContent.toString());
+      await file.writeAsString(csv);
 
-      await Share.shareXFiles([XFile(path)], text: 'Lista exportada em CSV');
+      // Compartilhar
+      await Share.shareXFiles([XFile(path)], text: 'Minha lista de compras em CSV');
     } catch (e) {
       print('Erro ao exportar CSV: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -88,6 +97,7 @@ class _TodoListPageState extends State<TodoListPage> {
       );
     }
   }
+
 
   Future<void> _loadProducts() async {
     final prefs = await SharedPreferences.getInstance();
@@ -186,25 +196,74 @@ class _TodoListPageState extends State<TodoListPage> {
     }
   }
 
+
+
   Future<void> _exportToPDF() async {
     try {
       final pdf = pw.Document();
+      final now = DateTime.now();
+      final formattedDate = DateFormat('dd/MM/yyyy – HH:mm').format(now);
 
       pdf.addPage(
         pw.Page(
+          margin: const pw.EdgeInsets.all(24),
           build: (pw.Context context) {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text(
+                pw.Center(
+                  child: pw.Text(
                     "Lista de Compras ${currentListName != null ? '(${currentListName})' : ''}",
-                    style: pw.TextStyle(fontSize: 24)),
-                pw.SizedBox(height: 12),
-                ...products.map((product) => pw.Text(
-                    '${product['title']} - Qtd: ${product['quantity']} - Valor: R\$ ${product['value']}')),
-                pw.SizedBox(height: 24),
+                    style: pw.TextStyle(
+                      fontSize: 26,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Center(
+                  child: pw.Text(
+                    "Exportado em: $formattedDate",
+                    style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Tabela com os produtos
+                pw.Table.fromTextArray(
+                  headers: ['Produto', 'Quantidade', 'Valor (R\$)'],
+                  data: products.map((product) {
+                    return [
+                      product['title'],
+                      product['quantity'].toString(),
+                      product['value'].toString()
+                    ];
+                  }).toList(),
+                  headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  cellStyle: const pw.TextStyle(fontSize: 12),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColors.grey300,
+                  ),
+                  cellAlignment: pw.Alignment.centerLeft,
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(3),
+                    1: const pw.FlexColumnWidth(1),
+                    2: const pw.FlexColumnWidth(2),
+                  },
+                ),
+
+                pw.SizedBox(height: 20),
+
                 pw.Text(
-                    'Total: R\$ ${_calculateTotalValue().toStringAsFixed(2)}'),
+                  'Total: R\$ ${_calculateTotalValue().toStringAsFixed(2)}',
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
               ],
             );
           },
@@ -225,6 +284,7 @@ class _TodoListPageState extends State<TodoListPage> {
       );
     }
   }
+
 
   void _addProduct() {
     String text = todoController.text.trim();
