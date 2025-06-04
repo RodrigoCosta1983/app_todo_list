@@ -42,8 +42,8 @@ class _TodoListPageState extends State<TodoListPage> {
   String? currentListName;
   bool _isSearching = false;
 
-  Map<String, dynamic>? _lastRemovedProduct; // Armazena o último produto removido
-  int? _lastRemovedProductIndex; // Armazena o índice do último produto removido
+  Map<String, dynamic>? _lastRemovedProduct;
+  int? _lastRemovedProductIndex;
 
   @override
   void initState() {
@@ -80,10 +80,8 @@ class _TodoListPageState extends State<TodoListPage> {
     try {
       List<List<String>> rows = [];
 
-      // Cabeçalhos
       rows.add(['Produto', 'Quantidade', 'Valor (R\$)']);
 
-      // Produtos
       for (var product in products) {
         rows.add([
           product['title'],
@@ -92,7 +90,6 @@ class _TodoListPageState extends State<TodoListPage> {
         ]);
       }
 
-      // Linha em branco + total
       rows.add([]);
       rows.add([
         'Total',
@@ -100,17 +97,14 @@ class _TodoListPageState extends State<TodoListPage> {
         _calculateTotalValue().toStringAsFixed(2),
       ]);
 
-      // Converter para CSV
       String csv = const ListToCsvConverter().convert(rows);
 
-      // Caminho do arquivo
       final String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
       final directory = await getTemporaryDirectory();
       final path = '${directory.path}/lista_compras_$formattedDate.csv';
       final file = File(path);
       await file.writeAsString(csv);
 
-      // Compartilhar
       await Share.shareXFiles([XFile(path)], text: 'Minha lista de compras em CSV');
     } catch (e) {
       print('Erro ao exportar CSV: $e');
@@ -258,7 +252,6 @@ class _TodoListPageState extends State<TodoListPage> {
                 ),
                 pw.SizedBox(height: 20),
 
-                // Tabela com os produtos
                 pw.Table.fromTextArray(
                   headers: ['Produto', 'Quantidade', 'Valor (R\$)'],
                   data: products.map((product) {
@@ -332,11 +325,10 @@ class _TodoListPageState extends State<TodoListPage> {
       _saveProducts();
       _filterProducts();
 
-      // Adicionar feedback visual de adição
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('"${text}" adicionado à lista!'),
-          duration: Duration(seconds: 2), // Duração do toast
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -533,7 +525,11 @@ class _TodoListPageState extends State<TodoListPage> {
             style: TextStyle(color: Colors.black87),
             autofocus: true,
           )
-              : Text("Lista de Compras"),
+              : Text(
+            currentListName != null && currentListName!.isNotEmpty
+                ? "Lista de Compras (${currentListName!})"
+                : "Lista de Compras",
+          ),
           actions: [
             IconButton(
               icon: Icon(_isSearching ? Icons.close : Icons.search),
@@ -588,7 +584,22 @@ class _TodoListPageState extends State<TodoListPage> {
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: ListView.builder(
+                    child: _filteredProducts.isEmpty && !_isSearching
+                        ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.shopping_bag, size: 80, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            "Sua lista de compras está vazia.\nAdicione um item!",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 18, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
+                        : ListView.builder(
                       controller: _scrollController,
                       itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
@@ -603,36 +614,31 @@ class _TodoListPageState extends State<TodoListPage> {
                             child: Icon(Icons.delete, color: Colors.white),
                           ),
                           onDismissed: (direction) {
-                            // Limpa qualquer SnackBar anterior para evitar múltiplos "Desfazer"
                             ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-                            // Armazena o produto e seu índice antes de remover
                             _lastRemovedProduct = Map<String, dynamic>.from(product);
                             _lastRemovedProductIndex = products.indexOf(product);
 
-                            // Remove o produto da lista principal
                             if (_lastRemovedProductIndex != -1) {
                               _removeProduct(_lastRemovedProductIndex!);
                             }
 
-                            // Mostra o SnackBar com a opção Desfazer
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('"${_lastRemovedProduct!['title']}" removido.'),
                                 action: SnackBarAction(
                                   label: 'Desfazer',
                                   onPressed: () {
-                                    // Adiciona o produto de volta à lista na posição original
                                     if (_lastRemovedProduct != null && _lastRemovedProductIndex != null) {
                                       setState(() {
                                         products.insert(_lastRemovedProductIndex!, _lastRemovedProduct!);
                                       });
                                       _saveProducts();
-                                      _filterProducts(); // Atualiza a lista filtrada
+                                      _filterProducts();
                                     }
                                   },
                                 ),
-                                duration: Duration(seconds: 5), // Tempo para o usuário desfazer
+                                duration: Duration(seconds: 5),
                               ),
                             );
                           },
