@@ -35,15 +35,37 @@ class _TodoListPageState extends State<TodoListPage> {
 
   final TextEditingController todoController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> products = [];
+  List<Map<String, dynamic>> _filteredProducts = [];
   List<String> savedLists = [];
   String? currentListName;
+  bool _isSearching = false;
+
+  Map<String, dynamic>? _lastRemovedProduct; // Armazena o último produto removido
+  int? _lastRemovedProductIndex; // Armazena o índice do último produto removido
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
     _loadSavedLists();
+    _searchController.addListener(_filterProducts);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterProducts() {
+    String query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredProducts = products.where((product) {
+        return product['title'].toLowerCase().contains(query);
+      }).toList();
+    });
   }
 
   Future<void> _loadSavedLists() async {
@@ -106,17 +128,23 @@ class _TodoListPageState extends State<TodoListPage> {
       setState(() {
         products = List<Map<String, dynamic>>.from(
           json.decode(productsData).map((product) => {
-                'title': product['title'],
-                'completed': product['completed'] ?? false,
-                'value': product['value'] ?? '',
-                'quantity': product['quantity'] ?? '',
-                'valueController': TextEditingController(
-                    text: product['value']?.toString() ?? ''),
-                'quantityController': TextEditingController(
-                    text: product['quantity']?.toString() ?? ''),
-              }),
+            'title': product['title'],
+            'completed': product['completed'] ?? false,
+            'value': product['value'] ?? '',
+            'quantity': product['quantity'] ?? '',
+            'valueController': TextEditingController(
+                text: product['value']?.toString() ?? ''),
+            'quantityController': TextEditingController(
+                text: product['quantity']?.toString() ?? ''),
+          }),
         );
+        _filterProducts();
       });
+    } else {
+      setState(() {
+        products = [];
+      });
+      _filterProducts();
     }
   }
 
@@ -126,11 +154,11 @@ class _TodoListPageState extends State<TodoListPage> {
         'products',
         json.encode(products
             .map((product) => {
-                  'title': product['title'],
-                  'completed': product['completed'],
-                  'value': product['value'],
-                  'quantity': product['quantity'],
-                })
+          'title': product['title'],
+          'completed': product['completed'],
+          'value': product['value'],
+          'quantity': product['quantity'],
+        })
             .toList()));
   }
 
@@ -140,11 +168,11 @@ class _TodoListPageState extends State<TodoListPage> {
         'list_$name',
         json.encode(products
             .map((product) => {
-                  'title': product['title'],
-                  'completed': product['completed'],
-                  'value': product['value'],
-                  'quantity': product['quantity'],
-                })
+          'title': product['title'],
+          'completed': product['completed'],
+          'value': product['value'],
+          'quantity': product['quantity'],
+        })
             .toList()));
 
     List<String> savedLists = prefs.getStringList('savedLists') ?? [];
@@ -179,20 +207,21 @@ class _TodoListPageState extends State<TodoListPage> {
     if (listData != null) {
       final decoded = List<Map<String, dynamic>>.from(
         json.decode(listData).map((product) => {
-              'title': product['title'],
-              'completed': product['completed'] ?? false,
-              'value': product['value'] ?? '',
-              'quantity': product['quantity'] ?? '',
-              'valueController': TextEditingController(
-                  text: product['value']?.toString() ?? ''),
-              'quantityController': TextEditingController(
-                  text: product['quantity']?.toString() ?? ''),
-            }),
+          'title': product['title'],
+          'completed': product['completed'] ?? false,
+          'value': product['value'] ?? '',
+          'quantity': product['quantity'] ?? '',
+          'valueController': TextEditingController(
+              text: product['value']?.toString() ?? ''),
+          'quantityController': TextEditingController(
+              text: product['quantity']?.toString() ?? ''),
+        }),
       );
       setState(() {
         currentListName = listName;
         products = decoded;
       });
+      _filterProducts();
     }
   }
 
@@ -301,6 +330,15 @@ class _TodoListPageState extends State<TodoListPage> {
       });
       todoController.clear();
       _saveProducts();
+      _filterProducts();
+
+      // Adicionar feedback visual de adição
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${text}" adicionado à lista!'),
+          duration: Duration(seconds: 2), // Duração do toast
+        ),
+      );
     }
   }
 
@@ -325,6 +363,7 @@ class _TodoListPageState extends State<TodoListPage> {
       products.removeAt(index);
     });
     _saveProducts();
+    _filterProducts();
   }
 
   double _calculateTotalValue() {
@@ -402,7 +441,7 @@ class _TodoListPageState extends State<TodoListPage> {
                           builder: (context) => AlertDialog(
                             title: const Text("Confirmar exclusão"),
                             content:
-                                Text("Deseja apagar a lista \"$listName\"?"),
+                            Text("Deseja apagar a lista \"$listName\"?"),
                             actions: [
                               TextButton(
                                 onPressed: () =>
@@ -426,6 +465,7 @@ class _TodoListPageState extends State<TodoListPage> {
                             products.clear();
                           });
                           _saveProducts();
+                          _filterProducts();
                         }
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Lista "$listName" apagada')),
@@ -441,7 +481,7 @@ class _TodoListPageState extends State<TodoListPage> {
                     );
                   }).toList(),
                 ),
-                const Divider(), // opcional, só se quiser separar visualmente
+                const Divider(),
 
                 ListTile(
                   leading: const Icon(Icons.info_outline),
@@ -456,7 +496,7 @@ class _TodoListPageState extends State<TodoListPage> {
                           children: [
                             const Text(
                               "Este é um app de lista de compras desenvolvido por RodrigoCosta-DEV. "
-                              "Você pode criar, salvar, apagar e exportar listas como PDF e CSV.",
+                                  "Você pode criar, salvar, apagar e exportar listas como PDF e CSV.",
                             ),
                             const SizedBox(height: 12),
                             ListTile(
@@ -482,8 +522,31 @@ class _TodoListPageState extends State<TodoListPage> {
           ),
         ),
         appBar: AppBar(
-          title: Text("Lista de Compras"),
+          title: _isSearching
+              ? TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Pesquisar produtos...',
+              border: InputBorder.none,
+              hintStyle: TextStyle(color: Colors.black38),
+            ),
+            style: TextStyle(color: Colors.black87),
+            autofocus: true,
+          )
+              : Text("Lista de Compras"),
           actions: [
+            IconButton(
+              icon: Icon(_isSearching ? Icons.close : Icons.search),
+              onPressed: () {
+                setState(() {
+                  _isSearching = !_isSearching;
+                  if (!_isSearching) {
+                    _searchController.clear();
+                    _filterProducts();
+                  }
+                });
+              },
+            ),
             IconButton(
               icon: Icon(Icons.save),
               onPressed: _showSaveDialog,
@@ -527,10 +590,11 @@ class _TodoListPageState extends State<TodoListPage> {
                   Expanded(
                     child: ListView.builder(
                       controller: _scrollController,
-                      itemCount: products.length,
+                      itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
+                        final product = _filteredProducts[index];
                         return Dismissible(
-                          key: Key(products[index]['title']),
+                          key: Key(product['title']),
                           direction: DismissDirection.endToStart,
                           background: Container(
                             color: Colors.red,
@@ -539,22 +603,52 @@ class _TodoListPageState extends State<TodoListPage> {
                             child: Icon(Icons.delete, color: Colors.white),
                           ),
                           onDismissed: (direction) {
-                            _removeProduct(index);
+                            // Limpa qualquer SnackBar anterior para evitar múltiplos "Desfazer"
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+                            // Armazena o produto e seu índice antes de remover
+                            _lastRemovedProduct = Map<String, dynamic>.from(product);
+                            _lastRemovedProductIndex = products.indexOf(product);
+
+                            // Remove o produto da lista principal
+                            if (_lastRemovedProductIndex != -1) {
+                              _removeProduct(_lastRemovedProductIndex!);
+                            }
+
+                            // Mostra o SnackBar com a opção Desfazer
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('"${_lastRemovedProduct!['title']}" removido.'),
+                                action: SnackBarAction(
+                                  label: 'Desfazer',
+                                  onPressed: () {
+                                    // Adiciona o produto de volta à lista na posição original
+                                    if (_lastRemovedProduct != null && _lastRemovedProductIndex != null) {
+                                      setState(() {
+                                        products.insert(_lastRemovedProductIndex!, _lastRemovedProduct!);
+                                      });
+                                      _saveProducts();
+                                      _filterProducts(); // Atualiza a lista filtrada
+                                    }
+                                  },
+                                ),
+                                duration: Duration(seconds: 5), // Tempo para o usuário desfazer
+                              ),
+                            );
                           },
                           child: Column(
                             children: [
                               ListTile(
                                 leading: Checkbox(
-                                  value: products[index]['completed'],
+                                  value: product['completed'],
                                   onChanged: (bool? value) {
                                     setState(() {
-                                      products[index]['completed'] =
-                                          value ?? false;
+                                      product['completed'] = value ?? false;
                                     });
                                     _saveProducts();
                                   },
                                 ),
-                                title: Text(products[index]['title']),
+                                title: Text(product['title']),
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -563,29 +657,29 @@ class _TodoListPageState extends State<TodoListPage> {
                                   children: [
                                     Expanded(
                                       child: TextField(
-                                        controller: products[index]
-                                            ['valueController'],
+                                        controller: product[
+                                        'valueController'],
                                         decoration: const InputDecoration(
                                           labelText: "Valor do produto",
                                           border: OutlineInputBorder(),
                                         ),
                                         keyboardType: TextInputType.number,
                                         onChanged: (text) =>
-                                            _updateValue(index, text),
+                                            _updateValue(products.indexOf(product), text),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: TextField(
-                                        controller: products[index]
-                                            ['quantityController'],
+                                        controller: product[
+                                        'quantityController'],
                                         decoration: const InputDecoration(
                                           labelText: "Quantidade",
                                           border: OutlineInputBorder(),
                                         ),
                                         keyboardType: TextInputType.number,
                                         onChanged: (text) =>
-                                            _updateQuantity(index, text),
+                                            _updateQuantity(products.indexOf(product), text),
                                       ),
                                     ),
                                   ],
@@ -600,7 +694,6 @@ class _TodoListPageState extends State<TodoListPage> {
                   ),
                   Text(
                       'Valor total dos produtos: R\$ ${_calculateTotalValue().toStringAsFixed(2)}'),
-                  //   Text('  Quantidade total de produtos: ${products.length}'),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
@@ -608,6 +701,7 @@ class _TodoListPageState extends State<TodoListPage> {
                         products.clear();
                       });
                       _saveProducts();
+                      _filterProducts();
                     },
                     child: const Text('Limpar tudo'),
                   ),
@@ -628,23 +722,6 @@ class _TodoListPageState extends State<TodoListPage> {
                       ),
                     ],
                   ),
-
-                  // ElevatedButton(
-                  //   onPressed: () async {
-                  //     final directory = await getTemporaryDirectory();
-                  //     final path = '${directory.path}/teste.txt';
-                  //     final file = File(path);
-                  //     await file
-                  //         .writeAsString("Arquivo de teste salvo com sucesso!");
-                  //     ScaffoldMessenger.of(context).showSnackBar(
-                  //       SnackBar(
-                  //           content: Text('Arquivo de teste salvo em:\n$path')),
-                  //     );
-                  //     await Share.shareXFiles([XFile(path)],
-                  //         text: 'Arquivo de teste compartilhado');
-                  //   },
-                  //   child: Text('Testar gravação'),
-                  // ),
                 ],
               ),
             ),
