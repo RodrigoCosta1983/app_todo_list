@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -671,6 +672,9 @@ class _TodoListPageState extends State<TodoListPage> {
                                           prefixText: 'R\$ ', // Adiciona o prefixo monetário
                                         ),
                                         keyboardType: TextInputType.numberWithOptions(decimal: true), // Altera para permitir decimais
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Permite apenas duas casas decimais
+                                        ],
                                         onChanged: (text) =>
                                             _updateValue(products.indexOf(product), text),
                                       ),
