@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +10,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart'; // Adicionado para TextInputFormatter
+import 'package:package_info_plus/package_info_plus.dart'; // Adicionado para PackageInfoPlus
 
 class TodoListPage extends StatefulWidget {
   TodoListPage({super.key});
@@ -45,12 +46,14 @@ class _TodoListPageState extends State<TodoListPage> {
 
   Map<String, dynamic>? _lastRemovedProduct;
   int? _lastRemovedProductIndex;
+  String _appVersion = 'N/A'; // Variável para armazenar a versão do app
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
     _loadSavedLists();
+    _loadAppVersion(); // Carrega a versão do app ao iniciar
     _searchController.addListener(_filterProducts);
   }
 
@@ -66,6 +69,13 @@ class _TodoListPageState extends State<TodoListPage> {
       _filteredProducts = products.where((product) {
         return product['title'].toLowerCase().contains(query);
       }).toList();
+    });
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _appVersion = info.version;
     });
   }
 
@@ -219,7 +229,6 @@ class _TodoListPageState extends State<TodoListPage> {
       _filterProducts();
     }
   }
-
 
 
   Future<void> _exportToPDF() async {
@@ -498,6 +507,13 @@ class _TodoListPageState extends State<TodoListPage> {
                               onTap: () =>
                                   _launchURL('https://rodrigocosta-dev.com'),
                             ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12.0),
+                              child: Text(
+                                'Versão do App: $_appVersion', // Exibindo a versão do app
+                                style: TextStyle(fontSize: 14, color: Colors.black),
+                              ),
+                            ),
                           ],
                         ),
                         actions: [
@@ -521,9 +537,9 @@ class _TodoListPageState extends State<TodoListPage> {
             decoration: InputDecoration(
               hintText: 'Pesquisar produtos...',
               border: InputBorder.none,
-              hintStyle: TextStyle(color: Colors.black38),
+              hintStyle: TextStyle(color: Colors.white70),
             ),
-            style: TextStyle(color: Colors.black87),
+            style: TextStyle(color: Colors.white),
             autofocus: true,
           )
               : Text(
@@ -664,16 +680,15 @@ class _TodoListPageState extends State<TodoListPage> {
                                   children: [
                                     Expanded(
                                       child: TextField(
-                                        controller: product[
-                                        'valueController'],
+                                        controller: product['valueController'],
                                         decoration: const InputDecoration(
                                           labelText: "Valor do produto",
                                           border: OutlineInputBorder(),
-                                          prefixText: 'R\$ ', // Adiciona o prefixo monetário
+                                          prefixText: 'R\$ ', // Prefixo R$
                                         ),
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true), // Altera para permitir decimais
+                                        keyboardType: TextInputType.numberWithOptions(decimal: true), // Aceita decimais
                                         inputFormatters: [
-                                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Permite apenas duas casas decimais
+                                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Limita a duas casas decimais
                                         ],
                                         onChanged: (text) =>
                                             _updateValue(products.indexOf(product), text),
@@ -710,6 +725,7 @@ class _TodoListPageState extends State<TodoListPage> {
                     onPressed: () {
                       setState(() {
                         products.clear();
+                        currentListName = null; // Adicionado: Limpa o nome da lista atual
                       });
                       _saveProducts();
                       _filterProducts();
