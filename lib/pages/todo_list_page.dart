@@ -668,8 +668,9 @@ class _TodoListPageState extends State<TodoListPage> {
                                         decoration: const InputDecoration(
                                           labelText: "Valor do produto",
                                           border: OutlineInputBorder(),
+                                          prefixText: 'R\$ ', // Adiciona o prefixo monetário
                                         ),
-                                        keyboardType: TextInputType.number,
+                                        keyboardType: TextInputType.numberWithOptions(decimal: true), // Altera para permitir decimais
                                         onChanged: (text) =>
                                             _updateValue(products.indexOf(product), text),
                                       ),
