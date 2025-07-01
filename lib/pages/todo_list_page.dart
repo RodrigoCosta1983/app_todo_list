@@ -383,10 +383,11 @@ class _TodoListPageState extends State<TodoListPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Salvar Lista'),
+        title: Text('Salvar Lista Atual'),
         content: TextField(
           controller: nameController,
           decoration: InputDecoration(hintText: 'Nome da lista'),
+          autofocus: true,
         ),
         actions: [
           TextButton(
@@ -397,10 +398,52 @@ class _TodoListPageState extends State<TodoListPage> {
           ),
           ElevatedButton(
             onPressed: () {
-              _saveCurrentListWithName(nameController.text);
-              Navigator.of(context).pop();
+              String listName = nameController.text.trim();
+              if (listName.isNotEmpty) {
+                _saveCurrentListWithName(listName);
+                Navigator.of(context).pop();
+              }
             },
             child: Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // NOVA FUNÇÃO PARA CRIAR LISTA VAZIA
+  void _showCreateEmptyListDialog() {
+    final nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Criar Nova Lista'),
+        content: TextField(
+          controller: nameController,
+          decoration: InputDecoration(hintText: 'Nome da nova lista'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              String newName = nameController.text.trim();
+              if (newName.isNotEmpty) {
+                Navigator.of(context).pop(); // Fecha o dialog
+                Navigator.of(context).pop(); // Fecha o drawer
+
+                setState(() {
+                  products.clear(); // Limpa a lista de produtos atual
+                  currentListName = newName; // Define o nome da nova lista
+                });
+                _saveCurrentListWithName(newName); // Salva a nova lista (agora vazia)
+                _filterProducts(); // Atualiza a UI
+              }
+            },
+            child: Text('Criar'),
           ),
         ],
       ),
@@ -427,61 +470,69 @@ class _TodoListPageState extends State<TodoListPage> {
                 ),
                 ExpansionTile(
                   title: const Text("Minhas Listas"),
-                  children: savedLists.map((listName) {
-                    return Dismissible(
-                      key: Key(listName),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        color: Colors.red,
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: const Icon(Icons.delete, color: Colors.white),
-                      ),
-                      confirmDismiss: (direction) async {
-                        return await showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text("Confirmar exclusão"),
-                            content:
-                            Text("Deseja apagar a lista \"$listName\"?"),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(false),
-                                child: const Text("Cancelar"),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(true),
-                                child: const Text("Apagar"),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      onDismissed: (direction) async {
-                        await _deleteList(listName);
-                        if (currentListName == listName) {
-                          setState(() {
-                            currentListName = null;
-                            products.clear();
-                          });
-                          _saveProducts();
-                          _filterProducts();
-                        }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Lista "$listName" apagada')),
-                        );
-                      },
-                      child: ListTile(
-                        title: Text(listName),
-                        onTap: () {
-                          _loadListByName(listName);
-                          Navigator.of(context).pop();
+                  // MODIFICAÇÃO AQUI: Adiciona o botão e a lista de listas salvas
+                  children: [
+                    ListTile(
+                      leading: Icon(Icons.add_circle_outline, color: Theme.of(context).primaryColor),
+                      title: Text("Criar nova lista", style: TextStyle(fontWeight: FontWeight.bold)),
+                      onTap: _showCreateEmptyListDialog,
+                    ),
+                    ...savedLists.map((listName) {
+                      return Dismissible(
+                        key: Key(listName),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          color: Colors.red,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        confirmDismiss: (direction) async {
+                          return await showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text("Confirmar exclusão"),
+                              content:
+                              Text("Deseja apagar a lista \"$listName\"?"),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(false),
+                                  child: const Text("Cancelar"),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(true),
+                                  child: const Text("Apagar"),
+                                ),
+                              ],
+                            ),
+                          );
                         },
-                      ),
-                    );
-                  }).toList(),
+                        onDismissed: (direction) async {
+                          await _deleteList(listName);
+                          if (currentListName == listName) {
+                            setState(() {
+                              currentListName = null;
+                              products.clear();
+                            });
+                            _saveProducts();
+                            _filterProducts();
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Lista "$listName" apagada')),
+                          );
+                        },
+                        child: ListTile(
+                          title: Text(listName),
+                          onTap: () {
+                            _loadListByName(listName);
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ],
                 ),
                 const Divider(),
 
@@ -544,7 +595,7 @@ class _TodoListPageState extends State<TodoListPage> {
           )
               : Text(
             currentListName != null && currentListName!.isNotEmpty
-                ? "Lista de Compras (${currentListName!})"
+                ? "Lista (${currentListName!})"
                 : "Lista de Compras",
           ),
           actions: [
@@ -601,7 +652,7 @@ class _TodoListPageState extends State<TodoListPage> {
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: _filteredProducts.isEmpty && !_isSearching
+                    child: _filteredProducts.isEmpty && products.isEmpty
                         ? const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -622,7 +673,7 @@ class _TodoListPageState extends State<TodoListPage> {
                       itemBuilder: (context, index) {
                         final product = _filteredProducts[index];
                         return Dismissible(
-                          key: Key(product['title']),
+                          key: Key(product['title'] + index.toString()), // Chave única
                           direction: DismissDirection.endToStart,
                           background: Container(
                             color: Colors.red,
