@@ -132,15 +132,24 @@ class _TodoListPageState extends State<TodoListPage> {
     if (productsData != null) {
       setState(() {
         products = List<Map<String, dynamic>>.from(
-          json.decode(productsData).map((product) => {
-            'title': product['title'],
-            'completed': product['completed'] ?? false,
-            'value': product['value'] ?? '',
-            'quantity': product['quantity'] ?? '',
-            'valueController': TextEditingController(
-                text: product['value']?.toString() ?? ''),
-            'quantityController': TextEditingController(
-                text: product['quantity']?.toString() ?? ''),
+          json.decode(productsData).map((product) {
+            // Lógica para converter quantidade String (legado) para int
+            final rawQuantity = product['quantity'];
+            int quantity = 1;
+            if (rawQuantity is int) {
+              quantity = rawQuantity;
+            } else if (rawQuantity is String) {
+              quantity = int.tryParse(rawQuantity) ?? 1;
+            }
+
+            return {
+              'title': product['title'],
+              'completed': product['completed'] ?? false,
+              'value': product['value'] ?? '',
+              'quantity': quantity, // Agora é int
+              'valueController': TextEditingController(
+                  text: product['value']?.toString() ?? ''),
+            };
           }),
         );
         _filterProducts();
@@ -162,7 +171,7 @@ class _TodoListPageState extends State<TodoListPage> {
           'title': product['title'],
           'completed': product['completed'],
           'value': product['value'],
-          'quantity': product['quantity'],
+          'quantity': product['quantity'], // Salva como int
         })
             .toList()));
   }
@@ -211,15 +220,24 @@ class _TodoListPageState extends State<TodoListPage> {
     final listData = prefs.getString('list_$listName');
     if (listData != null) {
       final decoded = List<Map<String, dynamic>>.from(
-        json.decode(listData).map((product) => {
-          'title': product['title'],
-          'completed': product['completed'] ?? false,
-          'value': product['value'] ?? '',
-          'quantity': product['quantity'] ?? '',
-          'valueController': TextEditingController(
-              text: product['value']?.toString() ?? ''),
-          'quantityController': TextEditingController(
-              text: product['quantity']?.toString() ?? ''),
+        json.decode(listData).map((product) {
+          // Lógica para converter quantidade String (legado) para int
+          final rawQuantity = product['quantity'];
+          int quantity = 1;
+          if (rawQuantity is int) {
+            quantity = rawQuantity;
+          } else if (rawQuantity is String) {
+            quantity = int.tryParse(rawQuantity) ?? 1;
+          }
+
+          return {
+            'title': product['title'],
+            'completed': product['completed'] ?? false,
+            'value': product['value'] ?? '',
+            'quantity': quantity, // Agora é int
+            'valueController': TextEditingController(
+                text: product['value']?.toString() ?? ''),
+          };
         }),
       );
       setState(() {
@@ -326,9 +344,8 @@ class _TodoListPageState extends State<TodoListPage> {
           'title': text,
           'completed': false,
           'value': '',
-          'quantity': '',
+          'quantity': 1, // Padrão agora é 1 (int)
           'valueController': TextEditingController(text: ''),
-          'quantityController': TextEditingController(text: ''),
         });
       });
       todoController.clear();
@@ -352,13 +369,23 @@ class _TodoListPageState extends State<TodoListPage> {
     _saveProducts();
   }
 
-  void _updateQuantity(int index, String quantity) {
+  // Funções para o Stepper
+  void _incrementQuantity(int index) {
     setState(() {
-      products[index]['quantity'] = quantity;
-      products[index]['quantityController'].text = quantity;
+      products[index]['quantity']++;
     });
     _saveProducts();
   }
+
+  void _decrementQuantity(int index) {
+    setState(() {
+      if (products[index]['quantity'] > 0) { // Não permite quantidade negativa
+        products[index]['quantity']--;
+      }
+    });
+    _saveProducts();
+  }
+
 
   void _removeProduct(int index) {
     setState(() {
@@ -373,7 +400,7 @@ class _TodoListPageState extends State<TodoListPage> {
       double value =
           double.tryParse(product['value'].toString().replaceAll(',', '.')) ??
               0.0;
-      int quantity = int.tryParse(product['quantity'].toString()) ?? 0;
+      int quantity = product['quantity']; // Acessa o int diretamente
       return sum + (value * quantity);
     });
   }
@@ -672,8 +699,9 @@ class _TodoListPageState extends State<TodoListPage> {
                       itemCount: _filteredProducts.length,
                       itemBuilder: (context, index) {
                         final product = _filteredProducts[index];
+                        final productIndex = products.indexOf(product);
                         return Dismissible(
-                          key: Key(product['title'] + index.toString()), // Chave única
+                          key: Key(product['title'] + productIndex.toString()), // Chave única
                           direction: DismissDirection.endToStart,
                           background: Container(
                             color: Colors.red,
@@ -729,34 +757,47 @@ class _TodoListPageState extends State<TodoListPage> {
                                     horizontal: 16.0),
                                 child: Row(
                                   children: [
+                                    // Campo de Valor
                                     Expanded(
+                                      flex: 2,
                                       child: TextField(
                                         controller: product['valueController'],
                                         decoration: const InputDecoration(
-                                          labelText: "Valor do produto",
+                                          labelText: "Valor",
                                           border: OutlineInputBorder(),
-                                          prefixText: 'R\$ ', // Prefixo R$
+                                          prefixText: 'R\$ ',
                                         ),
-                                        keyboardType: TextInputType.numberWithOptions(decimal: true), // Aceita decimais
+                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
                                         inputFormatters: [
-                                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Limita a duas casas decimais
+                                          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                                         ],
-                                        onChanged: (text) =>
-                                            _updateValue(products.indexOf(product), text),
+                                        onChanged: (text) => _updateValue(productIndex, text),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
+
+                                    // ## NOVO WIDGET STEPPER DE QUANTIDADE ##
                                     Expanded(
-                                      child: TextField(
-                                        controller: product[
-                                        'quantityController'],
-                                        decoration: const InputDecoration(
-                                          labelText: "Quantidade",
-                                          border: OutlineInputBorder(),
-                                        ),
-                                        keyboardType: TextInputType.number,
-                                        onChanged: (text) =>
-                                            _updateQuantity(products.indexOf(product), text),
+                                      flex: 3,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text("Qtd:", style: TextStyle(fontSize: 16)),
+                                          IconButton(
+                                            icon: Icon(Icons.remove_circle_outline),
+                                            onPressed: () => _decrementQuantity(productIndex),
+                                            color: Colors.red,
+                                          ),
+                                          Text(
+                                            product['quantity'].toString(),
+                                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.add_circle_outline),
+                                            onPressed: () => _incrementQuantity(productIndex),
+                                            color: Colors.green,
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
@@ -776,7 +817,7 @@ class _TodoListPageState extends State<TodoListPage> {
                     onPressed: () {
                       setState(() {
                         products.clear();
-                        currentListName = null; // Adicionado: Limpa o nome da lista atual
+                        currentListName = null;
                       });
                       _saveProducts();
                       _filterProducts();
