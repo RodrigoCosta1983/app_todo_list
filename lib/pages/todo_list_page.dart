@@ -615,9 +615,9 @@ class _TodoListPageState extends State<TodoListPage> {
             decoration: InputDecoration(
               hintText: 'Pesquisar produtos...',
               border: InputBorder.none,
-              hintStyle: TextStyle(color: Colors.white70),
+              hintStyle: TextStyle(color: Colors.black45),
             ),
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: Colors.black87),
             autofocus: true,
           )
               : Text(
