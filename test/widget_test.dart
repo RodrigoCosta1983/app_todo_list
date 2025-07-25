@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todo_list/main.dart';
 
-import 'package:todo_list/pages/todo_list_page.dart';
+import 'package:todo_list/pages/todo_list_page_old.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
