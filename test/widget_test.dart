@@ -1,32 +1,28 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// test/widget_test.dart
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:todo_list/main.dart';
-
-import 'package:todo_list/pages/todo_list_page_old.dart';
+import 'package:provider/provider.dart';
+import 'package:todo_list/main.dart'; // Importa o main.dart
+import 'package:todo_list/providers/todo_list_provider.dart'; // Importa o Provider
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(TodoListPage());
+  testWidgets('App smoke test: finds initial title and empty list message', (WidgetTester tester) async {
+    // ATENÇÃO: O teste agora precisa do Provider para funcionar,
+    // assim como no main.dart real.
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (context) => TodoListProvider(),
+        child: const MyApp(),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verifica se o título inicial do AppBar está na tela.
+    expect(find.text('Lista de Compras'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verifica se a mensagem de lista vazia aparece inicialmente.
+    expect(find.text('Sua lista está vazia!'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verifica que não há nenhum produto com o título 'Item 1'
+    expect(find.text('Item 1'), findsNothing);
   });
 }

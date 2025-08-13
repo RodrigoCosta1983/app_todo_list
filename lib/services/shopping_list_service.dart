@@ -2,7 +2,7 @@
 
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'product_model.dart';
+import '../models/product_model.dart';
 
 class ShoppingListService {
   // Constantes para evitar "magic strings" e erros de digitação.
@@ -75,5 +75,11 @@ class ShoppingListService {
     final List<String> savedLists = await getSavedListNames();
     savedLists.remove(listName);
     await prefs.setStringList(_savedListsKey, savedLists);
+  }
+
+  // Dentro da classe ShoppingListService em lib/services/shopping_list_service.dart
+  Future<void> saveListNames(List<String> names) async {
+    final prefs = await _prefs;
+    await prefs.setStringList(_savedListsKey, names);
   }
 }

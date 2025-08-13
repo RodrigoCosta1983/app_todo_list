@@ -1,4 +1,4 @@
-// lib/todo_list_page_old.dart
+// lib/pages/todo_list_page.dart
 
 import 'dart:io';
 import 'package:csv/csv.dart';
@@ -11,9 +11,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-import 'product_model.dart';
-import 'shopping_list_service.dart';
+import 'package:todo_list/models/product_model.dart';
+import 'package:todo_list/services/shopping_list_service.dart';
 
 class TodoListPage extends StatefulWidget {
   const TodoListPage({super.key});
@@ -23,27 +22,21 @@ class TodoListPage extends StatefulWidget {
 }
 
 class _TodoListPageState extends State<TodoListPage> {
-  // --- STATE VARIABLES ---
   final _listService = ShoppingListService();
   final _productNameController = TextEditingController();
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
-
-  // Controllers for each product's value field, mapped by product ID.
   final Map<String, TextEditingController> _valueControllers = {};
 
   List<Product> _products = [];
   List<Product> _filteredProducts = [];
   List<String> _savedListNames = [];
   String? _currentListName;
-
   Product? _lastRemovedProduct;
   int? _lastRemovedProductIndex;
-
   bool _isSearching = false;
   String _appVersion = '...';
 
-  // --- LIFECYCLE METHODS ---
   @override
   void initState() {
     super.initState();
@@ -56,50 +49,42 @@ class _TodoListPageState extends State<TodoListPage> {
     _productNameController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
-    // Dispose all dynamic controllers to prevent memory leaks.
     for (var controller in _valueControllers.values) {
       controller.dispose();
     }
     super.dispose();
   }
 
-  // --- DATA & LOGIC METHODS ---
   Future<void> _loadInitialData() async {
     _appVersion = (await PackageInfo.fromPlatform()).version;
     await _loadCurrentList();
     await _loadSavedListNames();
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadCurrentList() async {
     _products = await _listService.loadCurrentList();
-    _updateValueControllers();
+    _sortProducts();
     _filterProducts();
   }
 
   Future<void> _loadSavedListNames() async {
     _savedListNames = await _listService.getSavedListNames();
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _saveCurrentList() async {
     await _listService.saveCurrentList(_products);
   }
 
-  void _updateValueControllers() {
-    // Dispose old controllers
-    for (var controller in _valueControllers.values) {
-      controller.dispose();
+  void _sortProducts() {
+    if (_products.isNotEmpty) {
+      _products.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
-    _valueControllers.clear();
-
-    // Create new ones for the current products
-    for (var product in _products) {
-      _valueControllers[product.id] = TextEditingController(
-        text: product.value > 0 ? product.value.toStringAsFixed(2) : '',
-      );
-    }
-    setState(() {});
   }
 
   void _filterProducts() {
@@ -114,18 +99,14 @@ class _TodoListPageState extends State<TodoListPage> {
   void _addProduct() {
     final text = _productNameController.text.trim();
     if (text.isEmpty) return;
-
     final newProduct = Product(title: text);
-
     setState(() {
       _products.add(newProduct);
-      _valueControllers[newProduct.id] = TextEditingController();
+      _sortProducts();
     });
-
     _productNameController.clear();
     _filterProducts();
     _saveCurrentList();
-
     _showSnackBar('"${newProduct.title}" adicionado!');
   }
 
@@ -142,18 +123,15 @@ class _TodoListPageState extends State<TodoListPage> {
 
   void _removeProduct(Product productToRemove) {
     _lastRemovedProduct = productToRemove;
-    _lastRemovedProductIndex = _products.indexWhere((p) => p.id == productToRemove.id);
+    _lastRemovedProductIndex =
+        _products.indexWhere((p) => p.id == productToRemove.id);
 
     if (_lastRemovedProductIndex != -1) {
       setState(() {
         _products.removeAt(_lastRemovedProductIndex!);
-        // Dispose and remove the controller for the deleted product.
-        _valueControllers[productToRemove.id]?.dispose();
-        _valueControllers.remove(productToRemove.id);
       });
       _filterProducts();
       _saveCurrentList();
-
       _showSnackBar(
         '"${_lastRemovedProduct!.title}" removido.',
         onUndo: _undoRemove,
@@ -165,9 +143,6 @@ class _TodoListPageState extends State<TodoListPage> {
     if (_lastRemovedProduct != null && _lastRemovedProductIndex != null) {
       setState(() {
         _products.insert(_lastRemovedProductIndex!, _lastRemovedProduct!);
-        _valueControllers[_lastRemovedProduct!.id] = TextEditingController(
-            text: _lastRemovedProduct!.value > 0 ? _lastRemovedProduct!.value.toStringAsFixed(2) : ''
-        );
       });
       _filterProducts();
       _saveCurrentList();
@@ -180,10 +155,6 @@ class _TodoListPageState extends State<TodoListPage> {
     setState(() {
       _products.clear();
       _currentListName = null;
-      for (var controller in _valueControllers.values) {
-        controller.dispose();
-      }
-      _valueControllers.clear();
     });
     _filterProducts();
     _saveCurrentList();
@@ -195,7 +166,6 @@ class _TodoListPageState extends State<TodoListPage> {
     });
   }
 
-  // --- NAVIGATION & DIALOGS ---
   Future<void> _launchURL(String url) async {
     try {
       final uri = Uri.parse(url);
@@ -207,13 +177,16 @@ class _TodoListPageState extends State<TodoListPage> {
     }
   }
 
-  void _showSnackBar(String message, {VoidCallback? onUndo, bool isError = false}) {
+  void _showSnackBar(String message,
+      {VoidCallback? onUndo, bool isError = false}) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? Colors.red : null,
-        action: onUndo != null ? SnackBarAction(label: 'Desfazer', onPressed: onUndo) : null,
+        action: onUndo != null
+            ? SnackBarAction(label: 'Desfazer', onPressed: onUndo)
+            : null,
       ),
     );
   }
@@ -222,7 +195,7 @@ class _TodoListPageState extends State<TodoListPage> {
     final nameController = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Salvar Lista Atual'),
         content: TextField(
           controller: nameController,
@@ -231,7 +204,7 @@ class _TodoListPageState extends State<TodoListPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
@@ -239,11 +212,13 @@ class _TodoListPageState extends State<TodoListPage> {
               final listName = nameController.text.trim();
               if (listName.isNotEmpty) {
                 await _listService.saveListWithName(listName, _products);
+                if (!mounted) return; // CORREÇÃO de async gap
                 setState(() {
                   _currentListName = listName;
                 });
                 await _loadSavedListNames();
-                Navigator.of(context).pop();
+                if (!mounted) return;
+                Navigator.of(dialogContext).pop();
                 _showSnackBar('Lista "$listName" salva com sucesso!');
               }
             },
@@ -258,7 +233,7 @@ class _TodoListPageState extends State<TodoListPage> {
     final nameController = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Criar Nova Lista'),
         content: TextField(
           controller: nameController,
@@ -267,25 +242,22 @@ class _TodoListPageState extends State<TodoListPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () async {
               final newName = nameController.text.trim();
               if (newName.isNotEmpty) {
-                // Clear current state
                 setState(() {
                   _products.clear();
                   _currentListName = newName;
                 });
-                _updateValueControllers();
                 _filterProducts();
-                // Save the new empty list
                 await _listService.saveListWithName(newName, _products);
                 await _loadSavedListNames();
-                // Close dialog and drawer
-                Navigator.of(context).pop();
+                if (!mounted) return;
+                Navigator.of(dialogContext).pop();
                 Navigator.of(context).pop();
               }
             },
@@ -296,7 +268,6 @@ class _TodoListPageState extends State<TodoListPage> {
     );
   }
 
-  // --- WIDGET BUILD METHODS ---
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -319,15 +290,13 @@ class _TodoListPageState extends State<TodoListPage> {
         decoration: const InputDecoration(
           hintText: 'Pesquisar produtos...',
           border: InputBorder.none,
-          hintStyle: TextStyle(color: Colors.white70),
+          hintStyle: TextStyle(color: Colors.black54),
         ),
-        style: const TextStyle(color: Colors.white),
+        style: const TextStyle(color: Colors.black87, fontSize: 18),
         autofocus: true,
       )
           : Text(
-        _currentListName != null && _currentListName!.isNotEmpty
-            ? "Lista: $_currentListName"
-            : "Lista de Compras",
+        _currentListName ?? "Lista de Compras",
       ),
       actions: [
         IconButton(
@@ -348,34 +317,71 @@ class _TodoListPageState extends State<TodoListPage> {
   }
 
   Drawer _buildDrawer() {
-    // ... O código do Drawer vai aqui, similar ao original, mas usando as novas funções.
-    // Este método ficou longo, mas sua lógica é focada apenas no Drawer.
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           const DrawerHeader(
             decoration: BoxDecoration(color: Colors.blue),
-            child: Text("Menu", style: TextStyle(color: Colors.white, fontSize: 24)),
+            child: Text("Menu",
+                style: TextStyle(color: Colors.white, fontSize: 24)),
           ),
           ExpansionTile(
             title: const Text("Minhas Listas"),
             initiallyExpanded: true,
             children: [
               ListTile(
-                leading: Icon(Icons.add_circle_outline, color: Theme.of(context).primaryColor),
-                title: const Text("Criar nova lista", style: TextStyle(fontWeight: FontWeight.bold)),
+                leading: Icon(Icons.add_circle_outline,
+                    color: Theme.of(context).primaryColor),
+                title: const Text("Criar nova lista",
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 onTap: _showCreateEmptyListDialog,
               ),
-              ..._savedListNames.map((listName) => _buildSavedListItem(listName)).toList(),
+              // CORREÇÃO: Removido o .toList() desnecessário
+              ..._savedListNames.map((listName) => _buildSavedListItem(listName)),
             ],
           ),
-          const Divider(),
+
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text("Sobre"),
             onTap: () {
-              // ... Lógica do dialog 'Sobre' ...
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text("Sobre o aplicativo"),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Este é um app de lista de compras desenvolvido por RodrigoCosta-DEV. "
+                            "Você pode criar, salvar, apagar e exportar listas como PDF e CSV.",
+                      ),
+                      const SizedBox(height: 12),
+                      ListTile(
+                        leading: const Icon(Icons.link),
+                        title: const Text("RodrigoCosta-DEV"),
+                        onTap: () =>
+                            _launchURL('https://rodrigocosta-dev.com'),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12.0),
+                        child: Text(
+                          'Versão do App: $_appVersion',
+                          style: const TextStyle(
+                              fontSize: 14, color: Colors.black),
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      child: const Text("Fechar"),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              );
             },
           ),
         ],
@@ -384,39 +390,54 @@ class _TodoListPageState extends State<TodoListPage> {
   }
 
   Widget _buildSavedListItem(String listName) {
-    // ... Código do Dismissible para apagar listas salvas ...
     return Dismissible(
       key: Key(listName),
       direction: DismissDirection.endToStart,
-      background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.symmetric(horizontal: 20), child: const Icon(Icons.delete, color: Colors.white)),
+      background: Container(
+          color: Colors.red,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: const Icon(Icons.delete, color: Colors.white)),
       confirmDismiss: (direction) async {
-        return await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-          title: const Text("Confirmar exclusão"),
-          content: Text("Deseja apagar a lista \"$listName\"?"),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text("Cancelar")),
-            TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text("Apagar")),
-          ],
-        )) ?? false;
+        return await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text("Confirmar exclusão"),
+              content: Text("Deseja apagar a lista \"$listName\"?"),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text("Cancelar")),
+                TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: const Text("Apagar")),
+              ],
+            )) ??
+            false;
       },
       onDismissed: (direction) async {
         await _listService.deleteList(listName);
         if (_currentListName == listName) {
           _clearAllProducts();
         }
-        _loadSavedListNames();
+        await _loadSavedListNames();
+        if (!mounted) return;
         _showSnackBar('Lista "$listName" apagada');
       },
       child: ListTile(
-        title: Text(listName, style: TextStyle(fontWeight: _currentListName == listName ? FontWeight.bold : FontWeight.normal)),
+        title: Text(listName,
+            style: TextStyle(
+                fontWeight:
+                _currentListName == listName ? FontWeight.bold : FontWeight.normal)),
         onTap: () async {
           _products = await _listService.loadListByName(listName);
+          if (!mounted) return;
           setState(() {
             _currentListName = listName;
           });
-          _updateValueControllers();
+          _sortProducts();
           _filterProducts();
-          Navigator.of(context).pop(); // Fecha o drawer
+          Navigator.of(context).pop();
         },
       ),
     );
@@ -425,7 +446,8 @@ class _TodoListPageState extends State<TodoListPage> {
   Widget _buildBody() {
     return Container(
       decoration: const BoxDecoration(
-        image: DecorationImage(image: AssetImage("assets/images/fundo.webp"), fit: BoxFit.cover),
+        image: DecorationImage(
+            image: AssetImage("assets/images/fundo.webp"), fit: BoxFit.cover),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -452,8 +474,6 @@ class _TodoListPageState extends State<TodoListPage> {
               border: OutlineInputBorder(),
               labelText: 'Adicione um produto',
               hintText: 'Ex: Arroz',
-              fillColor: Colors.white70,
-              filled: true,
             ),
             onSubmitted: (_) => _addProduct(),
           ),
@@ -461,7 +481,10 @@ class _TodoListPageState extends State<TodoListPage> {
         const SizedBox(width: 8),
         ElevatedButton(
           onPressed: _addProduct,
-          style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.all(12),
+            shape: const CircleBorder(),
+          ),
           child: const Icon(Icons.add, size: 30),
         ),
       ],
@@ -469,8 +492,12 @@ class _TodoListPageState extends State<TodoListPage> {
   }
 
   Widget _buildProductList() {
-    if (_filteredProducts.isEmpty && _products.isNotEmpty && _searchController.text.isNotEmpty) {
-      return const Center(child: Text("Nenhum produto encontrado na busca.", style: TextStyle(fontSize: 18, color: Colors.white, backgroundColor: Colors.black54)));
+    if (_filteredProducts.isEmpty &&
+        _products.isNotEmpty &&
+        _searchController.text.isNotEmpty) {
+      return const Center(
+          child: Text("Nenhum produto encontrado.",
+              style: TextStyle(fontSize: 18)));
     }
 
     if (_products.isEmpty) {
@@ -478,9 +505,15 @@ class _TodoListPageState extends State<TodoListPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.shopping_cart_checkout_rounded, size: 80, color: Colors.white70),
+            Icon(Icons.shopping_cart_checkout_rounded,
+                size: 80, color: Colors.grey),
             SizedBox(height: 16),
-            Text("Sua lista está vazia!", textAlign: TextAlign.center, style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold, backgroundColor: Colors.black54)),
+            Text("Sua lista está vazia!",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 20,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
       );
@@ -491,85 +524,122 @@ class _TodoListPageState extends State<TodoListPage> {
       itemCount: _filteredProducts.length,
       itemBuilder: (context, index) {
         final product = _filteredProducts[index];
+        _valueControllers.putIfAbsent(
+            product.id,
+                () => TextEditingController(
+                text: product.value > 0
+                    ? product.value.toStringAsFixed(2)
+                    : ''));
         return _buildProductItem(product);
       },
     );
   }
 
   Widget _buildProductItem(Product product) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Dismissible(
         key: ValueKey(product.id),
         direction: DismissDirection.endToStart,
-        background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.symmetric(horizontal: 20), child: const Icon(Icons.delete, color: Colors.white)),
+        background: Container(
+            color: Colors.red,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const Icon(Icons.delete, color: Colors.white)),
         onDismissed: (_) => _removeProduct(product),
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
-            children: [
-              ListTile(
-                leading: Checkbox(
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Checkbox(
                   value: product.completed,
-                  onChanged: (value) => _updateProduct(product.copyWith(completed: value)),
+                  onChanged: (value) =>
+                      _updateProduct(product.copyWith(completed: value)),
                 ),
-                title: Text(product.title, style: TextStyle(decoration: product.completed ? TextDecoration.lineThrough : TextDecoration.none)),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  children: [
-                    // Campo de Valor
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: _valueControllers[product.id],
-                        decoration: const InputDecoration(
-                          labelText: "Valor",
-                          border: OutlineInputBorder(),
-                          prefixText: 'R\$ ',
+                Expanded(
+                  child: Text(
+                    product.title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      decoration: product.completed
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const SizedBox(width: 48), // Align with Checkbox
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: _valueControllers[product.id],
+                    decoration: const InputDecoration(
+                      labelText: "Valor",
+                      border: OutlineInputBorder(),
+                      prefixText: 'R\$ ',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                    ),
+                    keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))
+                    ],
+                    onChanged: (text) {
+                      final value =
+                          double.tryParse(text.replaceAll(',', '.')) ?? 0.0;
+                      final index =
+                      _products.indexWhere((p) => p.id == product.id);
+                      if (index != -1) {
+                        _products[index] = product.copyWith(value: value);
+                      }
+                    },
+                    onSubmitted: (_) => _saveCurrentList(),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 4,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      const Text("Qtd:", style: TextStyle(fontSize: 16)),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle),
+                        onPressed: product.quantity > 1
+                            ? () => _updateProduct(
+                            product.copyWith(quantity: product.quantity - 1))
+                            : null,
+                        // Usamos 'style' para definir as cores
+                        style: IconButton.styleFrom(
+                          foregroundColor: Colors.red, // Cor para o ícone quando ATIVADO
+                          disabledForegroundColor: Colors.grey.withOpacity(0.5), // Cor para o ícone quando DESATIVADO
                         ),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
-                        onChanged: (text) {
-                          final value = double.tryParse(text) ?? 0.0;
-                          // Esta é uma maneira de atualizar sem reconstruir o widget inteiro
-                          final index = _products.indexWhere((p) => p.id == product.id);
-                          if (index != -1) {
-                            _products[index] = product.copyWith(value: value);
-                            // Não chama _save aqui para melhor performance, salva ao sair do campo ou em outra ação
-                          }
-                        },
-                        onSubmitted: (_) => _saveCurrentList(),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Stepper de Quantidade
-                    Expanded(
-                      flex: 4,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text("Qtd:", style: TextStyle(fontSize: 16)),
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            onPressed: product.quantity > 1 ? () => _updateProduct(product.copyWith(quantity: product.quantity - 1)) : null,
-                            color: Colors.red,
-                          ),
-                          Text(product.quantity.toString(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            onPressed: () => _updateProduct(product.copyWith(quantity: product.quantity + 1)),
-                            color: Colors.green,
-                          ),
-                        ],
+
+                      Text(product.quantity.toString(),
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+
+                      IconButton(
+                        icon: const Icon(Icons.add_circle),
+                        onPressed: () => _updateProduct(
+                            product.copyWith(quantity: product.quantity + 1)),
+                        // Também aplicamos o estilo aqui para consistência
+                        style: IconButton.styleFrom(
+                          foregroundColor: Colors.green,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -579,32 +649,39 @@ class _TodoListPageState extends State<TodoListPage> {
     final total = _calculateTotalValue();
     return Column(
       children: [
+        const SizedBox(height: 16),
         Text(
-          'Valor total: R\$ ${total.toStringAsFixed(2)}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, backgroundColor: Colors.black54),
+            'Valor total dos produtos: R\$ ${_calculateTotalValue().toStringAsFixed(2)}'),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: _products.isEmpty ? null : _clearAllProducts,
+          child: const Text("Limpar tudo"),
         ),
         const SizedBox(height: 8),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton.icon(icon: const Icon(Icons.delete_sweep), label: const Text("Limpar"), onPressed: _products.isEmpty ? null : _clearAllProducts, style: ElevatedButton.styleFrom(backgroundColor: Colors.red[800])),
-            ElevatedButton.icon(icon: const Icon(Icons.share), label: const Text("CSV"), onPressed: _products.isEmpty ? null : _exportToCSV),
-            ElevatedButton.icon(icon: const Icon(Icons.picture_as_pdf), label: const Text("PDF"), onPressed: _products.isEmpty ? null : _exportToPDF),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.share),
+              label: const Text("CSV"),
+              onPressed: _products.isEmpty ? null : _exportToCSV,
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.picture_as_pdf),
+              label: const Text("PDF"),
+              onPressed: _products.isEmpty ? null : _exportToPDF,
+            ),
           ],
         )
       ],
     );
   }
 
-  // --- EXPORT METHODS ---
-  // --- EXPORT METHODS ---
   Future<void> _exportToCSV() async {
     try {
       List<List<String>> rows = [];
-      // Cabeçalho
       rows.add(['Produto', 'Quantidade', 'Valor (R\$)']);
-
-      // Itens (usando a variável correta '_products')
       for (var product in _products) {
         rows.add([
           product.title,
@@ -612,20 +689,18 @@ class _TodoListPageState extends State<TodoListPage> {
           product.value.toStringAsFixed(2),
         ]);
       }
-
-      // Linha do Total
       rows.add([]);
       rows.add(['Total', '', _calculateTotalValue().toStringAsFixed(2)]);
 
       String csv = const ListToCsvConverter().convert(rows, fieldDelimiter: ';');
-
-      final String formattedDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
+      final String formattedDate =
+      DateFormat('dd-MM-yyyy').format(DateTime.now());
       final directory = await getTemporaryDirectory();
       final path = '${directory.path}/lista_compras_$formattedDate.csv';
       final file = File(path);
       await file.writeAsString(csv);
-
-      await Share.shareXFiles([XFile(path)], text: 'Minha lista de compras em CSV');
+      await Share.shareXFiles([XFile(path)],
+          text: 'Minha lista de compras em CSV');
     } catch (e) {
       _showSnackBar('Erro ao exportar CSV.', isError: true);
     }
@@ -646,43 +721,41 @@ class _TodoListPageState extends State<TodoListPage> {
               children: [
                 pw.Center(
                   child: pw.Text(
-                    "Lista de Compras ${ _currentListName != null ? '($_currentListName)' : ''}",
-                    style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold),
+                    "Lista de Compras ${_currentListName != null ? '($_currentListName)' : ''}",
+                    style: pw.TextStyle(
+                        fontSize: 26, fontWeight: pw.FontWeight.bold),
                   ),
                 ),
                 pw.SizedBox(height: 8),
                 pw.Center(
-                  child: pw.Text(
-                    "Exportado em: $formattedDate",
-                    style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
-                  ),
-                ),
+                    child: pw.Text("Exportado em: $formattedDate",
+                        style: const pw.TextStyle(
+                            fontSize: 12, color: PdfColors.grey600))),
                 pw.SizedBox(height: 20),
-                pw.Table.fromTextArray(
+                // CORREÇÃO: `Table.fromTextArray` -> `TableHelper.fromTextArray`
+                pw.TableHelper.fromTextArray(
                   headers: ['Produto', 'Quantidade', 'Valor (R\$)'],
-                  data: _products.map((product) { // Usando a variável correta '_products'
+                  data: _products.map((product) {
                     return [
                       product.title,
                       product.quantity.toString(),
-                      'R\$ ${product.value.toStringAsFixed(2)}'
+                      product.value.toStringAsFixed(2)
                     ];
                   }).toList(),
-                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
+                  headerStyle: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold, fontSize: 14),
                   cellStyle: const pw.TextStyle(fontSize: 12),
-                  headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                  headerDecoration:
+                  const pw.BoxDecoration(color: PdfColors.grey300),
                   cellAlignment: pw.Alignment.centerLeft,
-                  columnWidths: {
-                    0: const pw.FlexColumnWidth(3),
-                    1: const pw.FlexColumnWidth(1.5),
-                    2: const pw.FlexColumnWidth(2),
-                  },
                 ),
                 pw.SizedBox(height: 20),
                 pw.Align(
                   alignment: pw.Alignment.centerRight,
                   child: pw.Text(
                     'Total: R\$ ${_calculateTotalValue().toStringAsFixed(2)}',
-                    style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(
+                        fontSize: 18, fontWeight: pw.FontWeight.bold),
                   ),
                 ),
               ],
@@ -695,8 +768,8 @@ class _TodoListPageState extends State<TodoListPage> {
       final path = '${directory.path}/lista_compras.pdf';
       final file = File(path);
       await file.writeAsBytes(await pdf.save());
-
-      await Share.shareXFiles([XFile(path)], text: 'Minha lista de compras em PDF');
+      await Share.shareXFiles([XFile(path)],
+          text: 'Minha lista de compras em PDF');
     } catch (e) {
       _showSnackBar('Erro ao exportar PDF.', isError: true);
     }
