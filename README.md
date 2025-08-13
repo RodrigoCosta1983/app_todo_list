@@ -10,7 +10,7 @@
 *(Sugestão: Grave um GIF rápido a demonstrar a aplicação em ação e coloque-o aqui! Ferramentas como o ScreenToGif no Windows ou o GIPHY Capture no Mac são ótimas para isso.)*
 
 ![Demo do App](URL_DO_SEU_GIF_AQUI.gif)
-![lista de produtos](https://github.com/user-attachments/assets/7340d7fe-7697-4429-808b-4bbf22dc756c)
+<img src="https://github.com/user-attachments/assets/7340d7fe-7697-4429-808b-4bbf22dc756c" alt="lista de produtos" width="350"/>
 
 ---
 
@@ -101,10 +101,15 @@ This project was born from the need to replace old paper lists with a simple and
 What began as a simple app has evolved into a complete shopping management tool:
 
 ✅ **Dynamic Lists:** Easily add, remove, edit, and check off items. The list is automatically sorted to show the most recent items at the top.
+
 ✅ **Multi-List Management:** Create, save, load, and delete unlimited lists. Ideal for organizing shopping for different stores, events, or months.
+
 ✅ **Real-Time Cost Tracking:** Input the price and quantity for each item and watch the **total cost of your purchase update instantly** at the bottom of the screen.
+
 ✅ **Instant Search:** Find any product in long lists with the real-time search filter.
+
 ✅ **Flexible Exporting:** Share your lists! Export to **PDF** to print or send via WhatsApp, or to **CSV** to analyze your spending in spreadsheets like Excel.
+
 ✅ **Local Persistence:** All your lists and products are securely saved on your device, thanks to `SharedPreferences`.
 
 ## 🚀 Technologies & Architecture
