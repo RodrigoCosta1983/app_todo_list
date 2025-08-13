@@ -12,8 +12,7 @@
 ![Demo do App](URL_DO_SEU_GIF_AQUI.gif)
 
 <img src="https://github.com/user-attachments/assets/7340d7fe-7697-4429-808b-4bbf22dc756c" alt="lista de produtos" width="300"/>
-<img src="https://github.com/user-attachments/assets/ac0aed60-3216-4abb-a540-fe3590686e2c" alt="lista de produtos" width="300"/>
-<img src="https://github.com/user-attachments/assets/8d9a8459-6916-453c-9b6f-9a67f79fdaeb" alt="lista de produtos" width="300"/>
+<img src="https://github.com/user-attachments/assets/ac0aed60-3216-4abb-a540-fe3590686e2c" alt="lista de produtos" width="300"/> 
 
 ---
 
