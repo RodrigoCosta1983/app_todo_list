@@ -1,0 +1,50 @@
+Política de Privacidade para o App Lista de Compras
+Desenvolvedor: Rodrigo Costa
+Última atualização: 14 de agosto de 2025
+
+Esta Política de Privacidade descreve como as suas informações são geridas quando você utiliza a nossa aplicação móvel "Lista de Compras" (doravante referida como "App"). A sua privacidade é de extrema importância para nós.
+
+1. Informações que Coletamos (e Não Coletamos)
+A nossa filosofia é coletar o mínimo de dados possível para fornecer uma ótima experiência.
+
+Nós NÃO coletamos informações de identificação pessoal. O App não solicita nem tem acesso ao seu nome, endereço de e-mail, número de telefone, localização, ou quaisquer outros dados pessoais sensíveis. Não é necessário criar uma conta para usar o App.
+
+Dados Gerados pelo Utilizador: Nós apenas guardamos os dados que você cria dentro do App. Isto inclui:
+
+Nomes das listas de compras (ex: "Supermercado", "Shopping).
+
+Itens dentro dessas listas (nomes dos produtos, quantidades, valores e estado "comprado").
+
+Todo este conteúdo é armazenado exclusivamente no seu dispositivo local, utilizando a funcionalidade de armazenamento interno do seu telemóvel (SharedPreferences). Nós não temos acesso a esta informação.
+
+2. Como Usamos as Suas Informações
+As informações que você gera e que são guardadas no seu dispositivo são utilizadas unicamente para o funcionamento principal do App:
+
+Para exibir as suas listas de compras.
+
+Para permitir que você edite, apague e gira os seus itens.
+
+Para calcular o valor total dos produtos na sua lista.
+
+Para carregar as suas listas salvas quando você regressa à aplicação.
+
+3. Partilha de Dados e Terceiros
+Nós não partilhamos os seus dados com nenhuns terceiros, servidores ou serviços de análise.
+
+A única exceção ocorre quando você, o utilizador, inicia ativamente uma ação de partilha:
+
+Funcionalidade de Exportação (PDF/CSV): Quando você utiliza a função para exportar uma lista, o App cria um ficheiro local (PDF ou CSV) no seu dispositivo. Em seguida, ele utiliza a funcionalidade de partilha nativa do seu sistema operativo para que você possa enviar esse ficheiro para os seus próprios contatos através de outras aplicações (como WhatsApp, Gmail, etc.). A partir do momento em que você partilha o ficheiro, a sua utilização fica sujeita à política de privacidade da aplicação para a qual você o enviou.
+
+4. Segurança dos Dados
+A segurança dos seus dados está diretamente ligada à segurança do seu próprio dispositivo. Como todas as suas listas são armazenadas localmente, elas estão protegidas pelas medidas de segurança do seu telemóvel (código de acesso, biometria, encriptação do dispositivo). Nós não transmitimos os seus dados para nenhum servidor externo.
+
+5. Privacidade de Crianças
+O nosso App não se destina a ser utilizado por menores de 13 anos. Nós não coletamos intencionalmente informações de identificação pessoal de crianças com menos de 13 anos.
+
+6. Alterações a Esta Política de Privacidade
+Podemos atualizar a nossa Política de Privacidade de tempos em tempos. Iremos notificá-lo sobre quaisquer alterações, publicando a nova Política de Privacidade nesta página. Recomenda-se que reveja esta Política de Privacidade periodicamente para quaisquer alterações.
+
+7. Contacte-nos
+Se tiver alguma questão sobre esta Política de Privacidade, por favor, contacte-nos através do e-mail:
+
+rodrigo.costa764@gmail.com
