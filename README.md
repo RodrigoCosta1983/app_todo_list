@@ -7,9 +7,12 @@
 
 ---
 
-*(Sugestão: Grave um GIF rápido a demonstrar a aplicação em ação e coloque-o aqui! Ferramentas como o ScreenToGif no Windows ou o GIPHY Capture no Mac são ótimas para isso.)*
 
-![Demo do App](URL_DO_SEU_GIF_AQUI.gif)
+*(GIF rápido a demonstrar a aplicação em ação aqui!)*
+
+<img src="https://github.com/user-attachments/assets/f5fea7fe-dd89-48fa-9263-276558c9b85e" alt="lista de produtos" width="300"/>
+
+****************************************************************************** 
 
 <img src="https://github.com/user-attachments/assets/7340d7fe-7697-4429-808b-4bbf22dc756c" alt="lista de produtos" width="300"/>
 <img src="https://github.com/user-attachments/assets/ac0aed60-3216-4abb-a540-fe3590686e2c" alt="lista de produtos" width="300"/> 
