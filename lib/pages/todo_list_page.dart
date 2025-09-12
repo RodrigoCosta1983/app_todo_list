@@ -373,9 +373,9 @@ class _TodoListPageState extends State<TodoListPage> {
         decoration: const InputDecoration(
           hintText: 'Pesquisar produtos...',
           border: InputBorder.none,
-          hintStyle: TextStyle(color: Colors.white70),
+          hintStyle: TextStyle(color: Colors.black54),
         ),
-        style: const TextStyle(color: Colors.white, fontSize: 18),
+        style: const TextStyle(color: Colors.black87, fontSize: 18),
         autofocus: true,
       )
           : Text(
@@ -425,7 +425,7 @@ class _TodoListPageState extends State<TodoListPage> {
                   .map((listName) => _buildSavedListItem(listName)),
             ],
           ),
-          const Divider(),
+
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text("Sobre"),
@@ -439,7 +439,9 @@ class _TodoListPageState extends State<TodoListPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "App de lista de compras desenvolvido por RodrigoCosta-DEV.",
+                        "Este é um app de lista de compras desenvolvido por RodrigoCosta-DEV. "
+                            "Você pode criar, salvar, apagar e exportar listas como PDF e CSV.",
+
                       ),
                       const SizedBox(height: 20),
                       InkWell(
@@ -716,6 +718,7 @@ class _TodoListPageState extends State<TodoListPage> {
     );
   }
 
+
   /// Constrói o rodapé com o valor total e os botões de ação.
   Widget _buildTotalsAndActions() {
     return Padding(
@@ -731,20 +734,26 @@ class _TodoListPageState extends State<TodoListPage> {
                 color: Colors.black87),
           ),
           const SizedBox(height: 16),
+
+          // --- BOTÕES ATUALIZADOS COM O ESTILO CORRETO ---
+
+          // Botão "Limpar tudo" agora usa o tema
+          ElevatedButton(
+            onPressed: _products.isEmpty ? null : _clearAllProducts,
+            child: const Text("Limpar tudo"),
+          ),
+          const SizedBox(height: 8),
+
+          // Botões de Exportação agora usam o tema
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ElevatedButton.icon(
-                icon: const Icon(Icons.delete_sweep_outlined),
-                label: const Text("Limpar"),
-                onPressed: _products.isEmpty ? null : _clearAllProducts,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red[600]),
-              ),
               ElevatedButton.icon(
                 icon: const Icon(Icons.share),
                 label: const Text("CSV"),
                 onPressed: _products.isEmpty ? null : _exportToCSV,
               ),
+              const SizedBox(width: 12),
               ElevatedButton.icon(
                 icon: const Icon(Icons.picture_as_pdf),
                 label: const Text("PDF"),
