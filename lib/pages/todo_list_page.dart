@@ -69,6 +69,9 @@ class _TodoListPageState extends State<TodoListPage> {
   /// Armazena a versão da aplicação para ser exibida no dialog "Sobre".
   String _appVersion = '...';
 
+  /// Flag para rastrear se existem alterações não salvas na lista atual.
+  bool _hasUnsavedChanges = false;
+
   // --- LIFECYCLE METHODS ---
 
   @override
@@ -93,6 +96,42 @@ class _TodoListPageState extends State<TodoListPage> {
   }
 
   // --- CORE DATA LOGIC ---
+
+
+  /// Verifica se há alterações não salvas antes de executar uma ação.
+  /// Se houver, mostra um diálogo de confirmação.
+  Future<void> _confirmAndExecute(VoidCallback onExecute) async {
+    if (!_hasUnsavedChanges) {
+      onExecute();
+      return;
+    }
+
+    final bool? shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Alterações não salvas"),
+        content: const Text(
+            "Você tem alterações não salvas na lista atual. Deseja descartá-las e continuar?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false), // Cancelar
+            child: const Text("Cancelar"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true), // Descartar
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Descartar"),
+          ),
+        ],
+      ),
+    );
+
+    // O usuário escolheu "Descartar"
+    if (shouldDiscard == true) {
+      onExecute();
+    }
+    // Se for nulo ou falso, o usuário cancelou, então não fazemos nada.
+  }
 
   /// Carrega todos os dados necessários ao iniciar a página.
   Future<void> _loadInitialData() async {
@@ -141,6 +180,7 @@ class _TodoListPageState extends State<TodoListPage> {
     setState(() {
       _products.add(newProduct);
       _sortProducts(); // Reordena a lista com o novo produto no topo
+      _hasUnsavedChanges = true;
     });
 
     _productNameController.clear();
@@ -155,6 +195,7 @@ class _TodoListPageState extends State<TodoListPage> {
     if (index != -1) {
       setState(() {
         _products[index] = updatedProduct;
+        _hasUnsavedChanges = true;
       });
       _filterProducts();
       _saveCurrentList();
@@ -170,6 +211,7 @@ class _TodoListPageState extends State<TodoListPage> {
     if (_lastRemovedProductIndex != -1) {
       setState(() {
         _products.removeAt(_lastRemovedProductIndex!);
+        _hasUnsavedChanges = true;
       });
       _filterProducts();
       _saveCurrentList();
@@ -199,6 +241,7 @@ class _TodoListPageState extends State<TodoListPage> {
     setState(() {
       _products.clear();
       _currentListName = null; // A lista não tem mais um nome associado
+      _hasUnsavedChanges = true;
     });
     _filterProducts();
     _saveCurrentList();
@@ -276,6 +319,7 @@ class _TodoListPageState extends State<TodoListPage> {
                 if (!mounted) return;
                 setState(() {
                   _currentListName = listName;
+                  _hasUnsavedChanges = false;
                 });
                 await _loadSavedListNames();
                 if (!mounted) return;
@@ -314,6 +358,7 @@ class _TodoListPageState extends State<TodoListPage> {
                 setState(() {
                   _products.clear();
                   _currentListName = newName;
+                  _hasUnsavedChanges = false;
                 });
                 _filterProducts();
                 await _listService.saveListWithName(newName, _products);
@@ -419,7 +464,11 @@ class _TodoListPageState extends State<TodoListPage> {
                     color: Theme.of(context).primaryColor),
                 title: const Text("Criar nova lista",
                     style: TextStyle(fontWeight: FontWeight.bold)),
-                onTap: _showCreateEmptyListDialog,
+                onTap: () {
+                  // Fecha o Drawer primeiro para depois mostrar o diálogo de criação
+                  Navigator.of(context).pop();
+                  _confirmAndExecute(_showCreateEmptyListDialog);
+                },
               ),
               ..._savedListNames
                   .map((listName) => _buildSavedListItem(listName)),
@@ -520,15 +569,18 @@ class _TodoListPageState extends State<TodoListPage> {
                 fontWeight: _currentListName == listName
                     ? FontWeight.bold
                     : FontWeight.normal)),
-        onTap: () async {
-          _products = await _listService.loadListByName(listName);
-          if (!mounted) return;
-          setState(() {
-            _currentListName = listName;
+        onTap: () {
+          _confirmAndExecute(() async {
+            _products = await _listService.loadListByName(listName);
+            if (!mounted) return;
+            setState(() {
+              _currentListName = listName;
+              _hasUnsavedChanges = false; // A lista foi carregada, está "limpa"
+            });
+            _sortProducts();
+            _filterProducts();
+            Navigator.of(context).pop(); // Fecha o Drawer
           });
-          _sortProducts();
-          _filterProducts();
-          Navigator.of(context).pop();
         },
       ),
     );
@@ -666,13 +718,9 @@ class _TodoListPageState extends State<TodoListPage> {
                           RegExp(r'^\d+\.?\d{0,2}'))
                     ],
                     onChanged: (text) {
-                      final value =
-                          double.tryParse(text.replaceAll(',', '.')) ?? 0.0;
-                      final index =
-                      _products.indexWhere((p) => p.id == product.id);
-                      if (index != -1) {
-                        _products[index] = product.copyWith(value: value);
-                      }
+                      final value = double.tryParse(text.replaceAll(',', '.')) ?? 0.0;
+                      // Reutilize o método que já chama setState e salva os dados
+                      _updateProduct(product.copyWith(value: value));
                     },
                     onSubmitted: (_) => _saveCurrentList(),
                   ),
