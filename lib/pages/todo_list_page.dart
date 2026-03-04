@@ -935,59 +935,61 @@ class _TodoListPageState extends State<TodoListPage> with WidgetsBindingObserver
   }
 
   /// Gera um ficheiro PDF da lista atual e abre o menu de partilha.
+  /// Gera um ficheiro PDF da lista atual e abre o menu de partilha.
   Future<void> _exportToPDF() async {
     try {
       final pdf = pw.Document();
       final now = DateTime.now();
-      final formattedDate = DateFormat('dd/MM/yyyy – HH:mm').format(now);
+
+      // MUDANÇA 1: Troquei o travessão por um hífen normal (-) para consertar o quadradinho na data
+      final formattedDate = DateFormat('dd/MM/yyyy - HH:mm').format(now);
 
       pdf.addPage(
-        pw.Page(
+        // MUDANÇA 2: Usar MultiPage em vez de Page para permitir que a lista cresça
+        pw.MultiPage(
           margin: const pw.EdgeInsets.all(24),
+          // MUDANÇA 3: MultiPage retorna uma LISTA de widgets ( [ ] ) em vez de uma Column
           build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Center(
-                  child: pw.Text(
-                    "Lista de Compras ${_currentListName != null ? '($_currentListName)' : ''}",
-                    style: pw.TextStyle(
-                        fontSize: 26, fontWeight: pw.FontWeight.bold),
-                  ),
+            return [
+              pw.Center(
+                child: pw.Text(
+                  "Lista de Compras ${_currentListName != null ? '($_currentListName)' : ''}",
+                  style: pw.TextStyle(
+                      fontSize: 26, fontWeight: pw.FontWeight.bold),
                 ),
-                pw.SizedBox(height: 8),
-                pw.Center(
-                    child: pw.Text("Exportado em: $formattedDate",
-                        style: const pw.TextStyle(
-                            fontSize: 12, color: PdfColors.grey600))),
-                pw.SizedBox(height: 20),
-                pw.TableHelper.fromTextArray(
-                  headers: ['Produto', 'Quantidade', 'Valor (R\$)'],
-                  data: _products.map((product) {
-                    return [
-                      product.title,
-                      product.quantity.toString(),
-                      product.value.toStringAsFixed(2)
-                    ];
-                  }).toList(),
-                  headerStyle: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold, fontSize: 14),
-                  cellStyle: const pw.TextStyle(fontSize: 12),
-                  headerDecoration:
-                  const pw.BoxDecoration(color: PdfColors.grey300),
-                  cellAlignment: pw.Alignment.centerLeft,
+              ),
+              pw.SizedBox(height: 8),
+              pw.Center(
+                  child: pw.Text("Exportado em: $formattedDate",
+                      style: const pw.TextStyle(
+                          fontSize: 12, color: PdfColors.grey600))),
+              pw.SizedBox(height: 20),
+              pw.TableHelper.fromTextArray(
+                headers: ['Produto', 'Quantidade', 'Valor (R\$)'],
+                data: _products.map((product) {
+                  return [
+                    product.title,
+                    product.quantity.toString(),
+                    product.value.toStringAsFixed(2)
+                  ];
+                }).toList(),
+                headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold, fontSize: 14),
+                cellStyle: const pw.TextStyle(fontSize: 12),
+                headerDecoration:
+                const pw.BoxDecoration(color: PdfColors.grey300),
+                cellAlignment: pw.Alignment.centerLeft,
+              ),
+              pw.SizedBox(height: 20),
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Text(
+                  'Total: R\$ ${_calculateTotalValue().toStringAsFixed(2)}',
+                  style: pw.TextStyle(
+                      fontSize: 18, fontWeight: pw.FontWeight.bold),
                 ),
-                pw.SizedBox(height: 20),
-                pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Text(
-                    'Total: R\$ ${_calculateTotalValue().toStringAsFixed(2)}',
-                    style: pw.TextStyle(
-                        fontSize: 18, fontWeight: pw.FontWeight.bold),
-                  ),
-                ),
-              ],
-            );
+              ),
+            ];
           },
         ),
       );
@@ -1000,6 +1002,7 @@ class _TodoListPageState extends State<TodoListPage> with WidgetsBindingObserver
           text: 'Minha lista de compras em PDF');
     } catch (e) {
       _showSnackBar('Erro ao exportar PDF.', isError: true);
+      print("LOG DE ERRO PDF: $e"); // Adicionado para facilitar descobrirmos futuros erros
     }
   }
 }
