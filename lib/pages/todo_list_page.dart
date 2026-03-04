@@ -558,9 +558,9 @@ class _TodoListPageState extends State<TodoListPage> with WidgetsBindingObserver
                           "Você pode criar, salvar, apagar e exportar listas como PDF e CSV."),
                       const SizedBox(height: 20),
                       InkWell(
-                        onTap: () => _launchURL('https://www.linkedin.com/in/dev-rodrigo-costa/'),
+                        onTap: () => _launchURL('https://rodrigocosta1983.github.io/rodrigocosta-dev.com/'),
                         child: Text(
-                          'LinkedIn de RodrigoCosta-DEV',
+                          'RodrigoCosta-DEV',
                           style: TextStyle(
                               color: Theme.of(context).primaryColor,
                               decoration: TextDecoration.underline),
