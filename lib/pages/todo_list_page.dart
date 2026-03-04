@@ -26,7 +26,7 @@ class TodoListPage extends StatefulWidget {
   State<TodoListPage> createState() => _TodoListPageState();
 }
 
-class _TodoListPageState extends State<TodoListPage> {
+class _TodoListPageState extends State<TodoListPage> with WidgetsBindingObserver {
   // --- STATE VARIABLES & CONTROLLERS ---
 
   /// Serviço responsável por toda a comunicação com o SharedPreferences.
@@ -68,6 +68,8 @@ class _TodoListPageState extends State<TodoListPage> {
 
   /// Armazena a versão da aplicação para ser exibida no dialog "Sobre".
   String _appVersion = '...';
+  String _appBuildNumber = '...';
+
 
   /// Flag para rastrear se existem alterações não salvas na lista atual.
   bool _hasUnsavedChanges = false;
@@ -77,6 +79,7 @@ class _TodoListPageState extends State<TodoListPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Adiciona um listener para o controlador de busca para filtrar a lista em tempo real.
     _searchController.addListener(_filterProducts);
     // Carrega todos os dados iniciais necessários para a página.
@@ -86,6 +89,7 @@ class _TodoListPageState extends State<TodoListPage> {
   @override
   void dispose() {
     // É crucial fazer o dispose de todos os controladores para evitar memory leaks.
+    WidgetsBinding.instance.removeObserver(this);
     _productNameController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
@@ -93,6 +97,37 @@ class _TodoListPageState extends State<TodoListPage> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  // --- LIFECYCLE METHODS ---
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Se o app for pausado, inativado ou fechado, executa o auto-save
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _performAutoSave();
+    }
+  }
+
+  void _performAutoSave() {
+    if (!_hasUnsavedChanges || _products.isEmpty) return;
+
+    // Se não tiver nome, cria um com o formato: Lista_15-10-2023_1430
+    final listName = _currentListName ??
+        'Lista_${DateFormat('dd-MM-yyyy_HHmm').format(DateTime.now())}';
+
+    _listService.saveListWithName(listName, _products);
+    _listService.saveCurrentList(_products);
+
+    if (mounted) {
+      setState(() {
+        _currentListName = listName;
+        _hasUnsavedChanges = false;
+      });
+      _loadSavedListNames();
+    }
   }
 
   // --- CORE DATA LOGIC ---
@@ -106,38 +141,64 @@ class _TodoListPageState extends State<TodoListPage> {
       return;
     }
 
-    final bool? shouldDiscard = await showDialog<bool>(
+    final String? action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Alterações não salvas"),
-        content: const Text(
-            "Você tem alterações não salvas na lista atual. Deseja descartá-las e continuar?"),
+        content: Text(
+          _currentListName != null
+              ? "Deseja salvar as alterações na lista '$_currentListName' antes de sair?"
+              : "Deseja salvar esta nova lista antes de sair?",
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false), // Cancelar
+            onPressed: () => Navigator.of(context).pop('cancel'),
             child: const Text("Cancelar"),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true), // Descartar
+            onPressed: () => Navigator.of(context).pop('discard'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Descartar"),
+            child: const Text("Sair sem salvar"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop('save'),
+            child: const Text("Salvar"),
           ),
         ],
       ),
     );
 
-    // O usuário escolheu "Descartar"
-    if (shouldDiscard == true) {
+    // O usuário escolheu "Sair sem salvar"
+    if (action == 'discard') {
       onExecute();
     }
-    // Se for nulo ou falso, o usuário cancelou, então não fazemos nada.
+    // O usuário escolheu "Salvar"
+    else if (action == 'save') {
+      final listName = _currentListName ??
+          'Lista_${DateFormat('dd-MM-yyyy_HHmm').format(DateTime.now())}';
+
+      await _listService.saveListWithName(listName, _products);
+
+      setState(() {
+        _currentListName = listName;
+        _hasUnsavedChanges = false;
+      });
+
+      await _loadSavedListNames();
+      onExecute(); // Executa a ação original (ex: abrir outra lista)
+    }
+    // Se for 'cancel' ou nulo, não fazemos nada.
   }
 
   /// Carrega todos os dados necessários ao iniciar a página.
   Future<void> _loadInitialData() async {
-    _appVersion = (await PackageInfo.fromPlatform()).version;
+    final packageInfo = await PackageInfo.fromPlatform();
+    _appVersion = packageInfo.version;
+    _appBuildNumber = packageInfo.buildNumber;
+
     await _loadCurrentList();
     await _loadSavedListNames();
+
     // Garante que o estado seja atualizado após carregar os dados assíncronos.
     if (mounted) {
       setState(() {});
@@ -365,7 +426,7 @@ class _TodoListPageState extends State<TodoListPage> {
                 await _loadSavedListNames();
                 if (!mounted) return;
                 Navigator.of(dialogContext).pop(); // Fecha o diálogo
-                Navigator.of(context).pop(); // Fecha o Drawer
+               // Navigator.of(context).pop(); // Fecha o Drawer
               }
             },
             child: const Text('Criar'),
@@ -477,7 +538,7 @@ class _TodoListPageState extends State<TodoListPage> {
 
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text("Sobre"),
+            title: const Text("Ajuda e Contato"),
             onTap: () {
               showDialog(
                 context: context,
@@ -487,27 +548,55 @@ class _TodoListPageState extends State<TodoListPage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                     const Text(
+                         "Simplifique suas idas ao mercado!"
+                     ),  const SizedBox(height: 5),
                       const Text(
-                        "Este é um app de lista de compras desenvolvido por RodrigoCosta-DEV. "
-                            "Você pode criar, salvar, apagar e exportar listas como PDF e CSV.",
-
-                      ),
+                        "Este é um app de lista de compras desenvolvido por RodrigoCosta-DEV."
+                      ), const SizedBox(height: 5),
+                      const Text(
+                          "Você pode criar, salvar, apagar e exportar listas como PDF e CSV."),
                       const SizedBox(height: 20),
                       InkWell(
-                        onTap: () => _launchURL('https://rodrigocosta-dev.com'),
+                        onTap: () => _launchURL('https://www.linkedin.com/in/dev-rodrigo-costa/'),
                         child: Text(
-                          'rodrigocosta-dev.com',
+                          'LinkedIn de RodrigoCosta-DEV',
                           style: TextStyle(
                               color: Theme.of(context).primaryColor,
                               decoration: TextDecoration.underline),
                         ),
+
+                      ),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () => _launchURL('https://www.storeconnect.com.br/'),
+                        child: Text(
+                          'Store&Connect',
+                          style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              decoration: TextDecoration.underline),
+                        ),
+
+                      ),
+                      const SizedBox(height: 8),// <<< Espaçamento entre o site e o e-mail
+                      InkWell(
+                        // O 'mailto:' avisa ao celular para abrir o app de e-mail
+                        onTap: () => _launchURL('mailto:contato.rodrigocosta.dev@gmail.com'),
+                        child: Text(
+                          'contato.rodrigocosta.dev@gmail.com',
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context).primaryColor, // Mudei para a cor do tema para mostrar que é clicável
+                              decoration: TextDecoration.underline), // Sublinhado para manter o padrão de link
+                        ),
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Versão: $_appVersion',
+                        'Versão: $_appVersion+$_appBuildNumber',
                         style:
-                        const TextStyle(fontSize: 14, color: Colors.grey),
+                        const TextStyle(fontSize: 14, color: Colors.grey ),
                       ),
+
                     ],
                   ),
                   actions: [
