@@ -6,9 +6,33 @@ allprojects {
 }
 
 rootProject.buildDir = "../build"
+
+// 1. PRIMEIRO: Registramos a "armadilha" para forçar o Java e Kotlin para a versão 17
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+
+    // Quando cada pacote terminar de carregar, nós invadimos e mudamos o Java dele para 17
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
+            }
+        }
+    }
+
+    // Já definimos de cara o Kotlin para 17 também
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
 }
+
+// 2. DEPOIS: Agora sim mandamos o Android avaliar o projeto.
+// Ao fazer isso, ele vai disparar a regra que criamos acima sem dar o erro de "finalized"!
 subprojects {
     project.evaluationDependsOn(":app")
 }

@@ -9,10 +9,12 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:todo_list/models/product_model.dart';
 import 'package:todo_list/services/shopping_list_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:convert';
 
 /// A página principal da aplicação, que exibe e gere a lista de compras.
 ///
@@ -84,6 +86,17 @@ class _TodoListPageState extends State<TodoListPage> with WidgetsBindingObserver
     _searchController.addListener(_filterProducts);
     // Carrega todos os dados iniciais necessários para a página.
     _loadInitialData();
+
+    // 1. Escuta se o app já estava aberto e recebeu o arquivo .lsc
+    ReceiveSharingIntent.instance.getMediaStream().listen((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) _processarArquivoImportado(value.first.path);
+    });
+
+    // 2. Escuta se o app estava fechado e foi aberto pelo clique no arquivo .lsc
+    ReceiveSharingIntent.instance.getInitialMedia().then((List<SharedMediaFile> value) {
+      if (value.isNotEmpty) _processarArquivoImportado(value.first.path);
+    });
+
   }
 
   @override
@@ -882,6 +895,7 @@ class _TodoListPageState extends State<TodoListPage> with WidgetsBindingObserver
           const SizedBox(height: 8),
 
           // Botões de Exportação agora usam o tema
+          // Botões de Exportação agora usam o tema
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -890,11 +904,21 @@ class _TodoListPageState extends State<TodoListPage> with WidgetsBindingObserver
                 label: const Text("CSV"),
                 onPressed: _products.isEmpty ? null : _exportToCSV,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8), // Diminuí o espaço para 8 para caberem os 3
               ElevatedButton.icon(
                 icon: const Icon(Icons.picture_as_pdf),
                 label: const Text("PDF"),
                 onPressed: _products.isEmpty ? null : _exportToPDF,
+              ),
+              const SizedBox(width: 8),
+              // NOVO BOTÃO DE EXPORTAR .LSC
+              ElevatedButton.icon(
+                icon: const Icon(Icons.send_to_mobile),
+                label: const Text("Enviar"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade50, // Destaca um pouco o botão principal
+                ),
+                onPressed: _products.isEmpty ? null : _exportToAppBackup,
               ),
             ],
           )
@@ -904,6 +928,101 @@ class _TodoListPageState extends State<TodoListPage> with WidgetsBindingObserver
   }
 
   // --- EXPORT METHODS ---
+  //*******************************//
+  // --- IMPORT / EXPORT (.LSC) ---
+
+  /// Gera um arquivo com extensão personalizada (.lsc) para compartilhamento.
+  Future<void> _exportToAppBackup() async {
+    try {
+      final String encodedData = json.encode(_products.map((p) => p.toJson()).toList());
+      final String formattedDate = DateFormat('dd-MM-yyyy_HHmm').format(DateTime.now());
+      final directory = await getTemporaryDirectory();
+
+      // O arquivo agora usa a sua extensão .lsc
+      final path = '${directory.path}/lista_$formattedDate.lsc';
+
+      final file = File(path);
+      await file.writeAsString(encodedData);
+
+      // Abre a janela de compartilhamento do celular
+      await Share.shareXFiles([XFile(path)], text: 'Aqui está a lista de compras!');
+    } catch (e) {
+      _showSnackBar('Erro ao gerar arquivo da lista.', isError: true);
+      print("Erro Exportar .lsc: $e");
+    }
+  }
+
+  /// Lê o arquivo clicado pelo usuário e aciona o diálogo para salvar.
+  Future<void> _processarArquivoImportado(String filePath) async {
+    // --- TRAVA DE SEGURANÇA ---
+    // Se o arquivo compartilhado não terminar com .lsc, ignora e não faz nada.
+    if (!filePath.toLowerCase().endsWith('.lsc')) {
+      ReceiveSharingIntent.instance.reset();
+      return;
+    }
+
+    try {
+      File file = File(filePath);
+      String jsonString = await file.readAsString();
+
+      List<dynamic> decodedData = json.decode(jsonString);
+      List<Product> importedProducts = decodedData.map((item) => Product.fromJson(item)).toList();
+
+      ReceiveSharingIntent.instance.reset();
+      _showNameForImportedListDialog(importedProducts);
+
+    } catch (e) {
+      _showSnackBar('Erro ao ler a lista. Arquivo pode estar corrompido.', isError: true);
+      print("Erro ao processar arquivo .lsc: $e");
+    }
+  }
+
+  /// Diálogo auxiliar para salvar a lista recém-importada.
+  void _showNameForImportedListDialog(List<Product> importedProducts) {
+    final nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Lista Recebida com Sucesso!'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(hintText: 'Dê um nome para salvar a lista'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              if (newName.isNotEmpty) {
+                // Salva no banco de dados local
+                await _listService.saveListWithName(newName, importedProducts);
+
+                if (!mounted) return;
+                setState(() {
+                  _products = importedProducts;
+                  _currentListName = newName;
+                  _hasUnsavedChanges = false;
+                });
+
+                _sortProducts();
+                _filterProducts();
+                await _loadSavedListNames();
+
+                if (!mounted) return;
+                Navigator.of(dialogContext).pop();
+                _showSnackBar('Lista salva como "$newName"!');
+              }
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// Gera um ficheiro CSV da lista atual e abre o menu de partilha.
   Future<void> _exportToCSV() async {
